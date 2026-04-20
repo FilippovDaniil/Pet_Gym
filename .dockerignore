@@ -1,0 +1,23 @@
+# Gradle build outputs
+build/
+.gradle/
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test coverage
+test-results/
+
+# Local config overrides
+application-local.properties
