@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ресепшен — Фитнес-клуб</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="d-flex">
+    <nav class="sidebar d-flex flex-column p-0" style="width:220px;min-width:220px">
+        <a href="#" class="brand">🏋️ FitClub</a>
+        <ul class="nav flex-column flex-grow-1">
+            <li><a class="nav-link active" href="#" onclick="showTab('tab-clients')">👥 Клиенты</a></li>
+            <li><a class="nav-link" href="#" onclick="showTab('tab-new-client')">➕ Новый клиент</a></li>
+            <li><a class="nav-link" href="#" onclick="showTab('tab-membership')">💳 Оформить абонемент</a></li>
+            <li><a class="nav-link" href="#" onclick="showTab('tab-visits')">✅ Посещения</a></li>
+            <li><a class="nav-link" href="#" onclick="showTab('tab-active')">📊 Активные абонементы</a></li>
+        </ul>
+        <div class="p-3">
+            <small class="text-secondary" id="sidebar-name"></small><br>
+            <a href="#" class="text-danger small" onclick="logout()">Выйти</a>
+        </div>
+    </nav>
+
+    <div class="main-content flex-grow-1 p-4">
+        <div id="alert-ok" class="alert alert-success d-none"></div>
+        <div id="alert-err" class="alert alert-danger d-none"></div>
+
+        <!-- Clients -->
+        <div id="tab-clients">
+            <h4>Поиск клиентов</h4>
+            <div class="input-group mb-3" style="max-width:400px">
+                <input type="text" class="form-control" id="client-search" placeholder="Email или телефон...">
+                <button class="btn btn-primary" onclick="searchClients()">Найти</button>
+                <button class="btn btn-outline-secondary" onclick="loadAllClients()">Все</button>
+            </div>
+            <table class="table table-hover">
+                <thead><tr><th>Имя</th><th>Email</th><th>Телефон</th><th>Абонемент</th><th>Действие</th></tr></thead>
+                <tbody id="clients-table"></tbody>
+            </table>
+        </div>
+
+        <!-- New Client -->
+        <div id="tab-new-client" class="d-none">
+            <h4>Создать нового клиента</h4>
+            <form id="new-client-form" style="max-width:500px">
+                <div class="row g-2 mb-2">
+                    <div class="col"><input class="form-control" id="nc-first" placeholder="Имя" required></div>
+                    <div class="col"><input class="form-control" id="nc-last" placeholder="Фамилия" required></div>
+                </div>
+                <input class="form-control mb-2" id="nc-email" type="email" placeholder="Email" required>
+                <input class="form-control mb-2" id="nc-phone" placeholder="Телефон">
+                <input class="form-control mb-2" id="nc-password" type="password" placeholder="Пароль" required>
+                <input class="form-control mb-3" id="nc-birth" type="date" placeholder="Дата рождения">
+                <button type="submit" class="btn btn-success">Создать</button>
+            </form>
+        </div>
+
+        <!-- Membership -->
+        <div id="tab-membership" class="d-none">
+            <h4>Оформить абонемент</h4>
+            <form id="membership-form" style="max-width:500px">
+                <div class="mb-3">
+                    <label class="form-label">Клиент</label>
+                    <input class="form-control" id="mem-client-search" placeholder="Поиск по email/телефону...">
+                    <select class="form-select mt-2" id="mem-client-select" size="4" style="display:none"></select>
+                    <input type="hidden" id="mem-client-id">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Тип абонемента</label>
+                    <select class="form-select" id="mem-type-select"></select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Дата начала</label>
+                    <input type="date" class="form-control" id="mem-start-date">
+                </div>
+                <button type="submit" class="btn btn-primary">Оформить</button>
+            </form>
+        </div>
+
+        <!-- Visits -->
+        <div id="tab-visits">
+            <h4 class="d-none">Отметить посещение</h4>
+        </div>
+        <div id="tab-visits" class="d-none">
+            <h4>Отметить посещение</h4>
+            <div class="row g-3 mb-4" style="max-width:600px">
+                <div class="col">
+                    <input class="form-control" id="visit-search" placeholder="Email или телефон клиента...">
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-outline-primary" onclick="searchForVisit()">Найти</button>
+                </div>
+            </div>
+            <div id="visit-client-list" class="mb-3"></div>
+            <hr>
+            <h5>Посещения сегодня</h5>
+            <table class="table table-sm">
+                <thead><tr><th>Клиент</th><th>Email</th><th>Время</th></tr></thead>
+                <tbody id="today-visits-table"></tbody>
+            </table>
+        </div>
+
+        <!-- Active memberships -->
+        <div id="tab-active" class="d-none">
+            <h4>Активные абонементы</h4>
+            <table class="table table-hover">
+                <thead><tr><th>Клиент</th><th>Тип</th><th>Начало</th><th>Конец</th><th>Сумма</th></tr></thead>
+                <tbody id="active-table"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/reception.js"></script>
+</body>
+</html>

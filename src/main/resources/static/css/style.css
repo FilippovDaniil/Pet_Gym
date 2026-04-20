@@ -1,0 +1,26 @@
+body { font-family: 'Segoe UI', sans-serif; }
+
+.sidebar { min-height: 100vh; background: #1a1a2e; }
+.sidebar .nav-link { color: #adb5bd; padding: .6rem 1.2rem; border-radius: 6px; margin: 2px 8px; }
+.sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); color: #fff; }
+.sidebar .brand { color: #fff; font-size: 1.3rem; font-weight: 700; padding: 1.5rem 1.2rem 1rem; display: block; text-decoration: none; }
+
+.main-content { background: #f8f9fa; min-height: 100vh; }
+.tab-pane { padding-top: 1rem; }
+
+.table-hover tbody tr:hover { background-color: rgba(0,123,255,.05); }
+
+.badge-active { background: #198754; }
+.badge-expired { background: #dc3545; }
+
+.card-stat { border-left: 4px solid; border-radius: 8px; }
+.card-stat.revenue { border-color: #198754; }
+.card-stat.members { border-color: #0d6efd; }
+.card-stat.trainings { border-color: #ffc107; }
+
+.notification-dot { width: 8px; height: 8px; background: #dc3545; border-radius: 50%; display: inline-block; }
+
+.slot-btn { min-width: 80px; margin: 4px; }
+
+#loading { display: none; }
+.spinner-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,.7); z-index: 9999; display: flex; align-items: center; justify-content: center; }

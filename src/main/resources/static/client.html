@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Клиент — Фитнес-клуб</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="d-flex">
+    <!-- Sidebar -->
+    <nav class="sidebar d-flex flex-column p-0" style="width:220px;min-width:220px">
+        <a href="#" class="brand">🏋️ FitClub</a>
+        <ul class="nav flex-column flex-grow-1">
+            <li class="nav-item"><a class="nav-link active" href="#" onclick="showTab('tab-membership')">💳 Абонемент</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" onclick="showTab('tab-trainers')">🧑‍🏫 Тренеры</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" onclick="showTab('tab-bookings')">📅 Тренировки</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" onclick="showTab('tab-program')">📋 Программа</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" onclick="showTab('tab-notifications')">🔔 Уведомления</a></li>
+        </ul>
+        <div class="p-3">
+            <small class="text-secondary" id="sidebar-name"></small><br>
+            <a href="#" class="text-danger small" onclick="logout()">Выйти</a>
+        </div>
+    </nav>
+
+    <!-- Main -->
+    <div class="main-content flex-grow-1 p-4">
+        <div id="alert-ok" class="alert alert-success d-none"></div>
+        <div id="alert-err" class="alert alert-danger d-none"></div>
+
+        <!-- Membership Tab -->
+        <div id="tab-membership">
+            <h4>Мои абонементы</h4>
+            <div id="membership-list" class="mb-4"></div>
+            <hr>
+            <h5>Купить абонемент</h5>
+            <div id="types-list" class="row g-3"></div>
+        </div>
+
+        <!-- Trainers Tab -->
+        <div id="tab-trainers" class="d-none">
+            <h4>Тренеры</h4>
+            <div id="trainers-list" class="row g-3 mb-4"></div>
+            <div id="booking-panel" class="d-none card p-4">
+                <h5>Бронировать тренировку с <span id="selected-trainer-name"></span></h5>
+                <div class="row g-3 align-items-end">
+                    <div class="col-auto">
+                        <label class="form-label">Дата</label>
+                        <input type="date" class="form-control" id="slot-date">
+                    </div>
+                    <div class="col-auto">
+                        <button class="btn btn-outline-primary" onclick="loadSlots()">Показать слоты</button>
+                    </div>
+                </div>
+                <div id="slots-container" class="mt-3"></div>
+            </div>
+        </div>
+
+        <!-- Bookings Tab -->
+        <div id="tab-bookings" class="d-none">
+            <h4>Мои тренировки</h4>
+            <table class="table table-hover">
+                <thead><tr><th>Тренер</th><th>Дата/время</th><th>Статус</th><th>Действия</th></tr></thead>
+                <tbody id="bookings-table"></tbody>
+            </table>
+        </div>
+
+        <!-- Program Tab -->
+        <div id="tab-program" class="d-none">
+            <h4>Моя программа тренировок</h4>
+            <div id="program-content"></div>
+        </div>
+
+        <!-- Notifications Tab -->
+        <div id="tab-notifications" class="d-none">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4>Уведомления</h4>
+                <button class="btn btn-sm btn-outline-secondary" onclick="markAllRead()">Прочитать все</button>
+            </div>
+            <div id="notifications-list"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/client.js"></script>
+</body>
+</html>

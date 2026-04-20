@@ -1,0 +1,608 @@
+{
+  "info": {
+    "name": "Фитнес-клуб API",
+    "description": "Полная коллекция для тестирования REST API фитнес-клуба",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8091", "type": "string" },
+    { "key": "adminToken", "value": "", "type": "string" },
+    { "key": "receptionToken", "value": "", "type": "string" },
+    { "key": "trainer1Token", "value": "", "type": "string" },
+    { "key": "clientToken", "value": "", "type": "string" },
+    { "key": "trainerId", "value": "", "type": "string" },
+    { "key": "bookingId", "value": "", "type": "string" },
+    { "key": "programId", "value": "", "type": "string" },
+    { "key": "clientId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login Admin",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "var r = pm.response.json();",
+            "pm.collectionVariables.set('adminToken', r.token);",
+            "pm.test('Login OK', () => pm.response.to.have.status(200));",
+            "pm.test('Has token', () => pm.expect(r.token).to.not.be.empty);"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@fit.com\",\n  \"password\": \"admin\"\n}" }
+          }
+        },
+        {
+          "name": "Login Reception",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "var r = pm.response.json();",
+            "pm.collectionVariables.set('receptionToken', r.token);",
+            "pm.test('Login OK', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"reception@fit.com\",\n  \"password\": \"reception\"\n}" }
+          }
+        },
+        {
+          "name": "Login Trainer1",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "var r = pm.response.json();",
+            "pm.collectionVariables.set('trainer1Token', r.token);",
+            "pm.test('Login OK', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"trainer1@fit.com\",\n  \"password\": \"trainer1\"\n}" }
+          }
+        },
+        {
+          "name": "Login Client1",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "var r = pm.response.json();",
+            "pm.collectionVariables.set('clientToken', r.token);",
+            "pm.collectionVariables.set('clientId', String(r.userId));",
+            "pm.test('Login OK', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"client1@fit.com\",\n  \"password\": \"client1\"\n}" }
+          }
+        },
+        {
+          "name": "Register New Client",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Register OK', () => pm.response.to.have.status(200));",
+            "var r = pm.response.json();",
+            "pm.test('Role is CLIENT', () => pm.expect(r.role).to.eql('CLIENT'));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/register",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"newclient@test.com\",\n  \"password\": \"pass123\",\n  \"firstName\": \"Новый\",\n  \"lastName\": \"Клиент\",\n  \"phone\": \"+79009999999\"\n}" }
+          }
+        },
+        {
+          "name": "Register - Duplicate Email (400)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Duplicate rejected', () => pm.response.to.have.status(400));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/register",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@fit.com\",\n  \"password\": \"pass123\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"Test\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Client",
+      "item": [
+        {
+          "name": "Get Membership Types",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Has types', () => pm.expect(pm.response.json()).to.be.an('array').that.is.not.empty);"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{clientToken}}" }],
+            "url": "{{baseUrl}}/api/client/memberships/types"
+          }
+        },
+        {
+          "name": "Get My Memberships",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{clientToken}}" }],
+            "url": "{{baseUrl}}/api/client/memberships/active"
+          }
+        },
+        {
+          "name": "Buy Membership (type 1 = 1 month)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "var r = pm.response.json();",
+            "pm.test('Membership active', () => pm.expect(r.active).to.be.true);"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{clientToken}}" }],
+            "url": "{{baseUrl}}/api/client/memberships/buy/1"
+          }
+        },
+        {
+          "name": "Get Trainers",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "var trainers = pm.response.json();",
+            "if(trainers.length > 0) pm.collectionVariables.set('trainerId', String(trainers[0].id));",
+            "pm.test('Has trainers', () => pm.expect(trainers).to.be.an('array'));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{clientToken}}" }],
+            "url": "{{baseUrl}}/api/client/trainers"
+          }
+        },
+        {
+          "name": "Get Trainer Free Slots",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{clientToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/client/trainers/{{trainerId}}/slots?date=2026-04-25",
+              "query": [{ "key": "date", "value": "2026-04-25" }]
+            }
+          }
+        },
+        {
+          "name": "Create Booking",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if(pm.response.code === 200) {",
+            "  pm.collectionVariables.set('bookingId', String(pm.response.json().id));",
+            "  pm.test('Booking created', () => pm.expect(pm.response.json().status).to.eql('CONFIRMED'));",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{clientToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/client/bookings",
+            "body": { "mode": "raw", "raw": "{\n  \"trainerId\": {{trainerId}},\n  \"startDateTime\": \"2026-04-25T10:00:00\"\n}" }
+          }
+        },
+        {
+          "name": "Get My Bookings",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{clientToken}}" }],
+            "url": "{{baseUrl}}/api/client/bookings"
+          }
+        },
+        {
+          "name": "Cancel Booking",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 204 or 400', () => pm.expect(pm.response.code).to.be.oneOf([204, 400]));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{clientToken}}" }],
+            "url": "{{baseUrl}}/api/client/bookings/{{bookingId}}"
+          }
+        },
+        {
+          "name": "Get My Workout Program",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200 or 204', () => pm.expect(pm.response.code).to.be.oneOf([200, 204]));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{clientToken}}" }],
+            "url": "{{baseUrl}}/api/client/workout-program"
+          }
+        },
+        {
+          "name": "Get My Notifications",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{clientToken}}" }],
+            "url": "{{baseUrl}}/api/client/notifications"
+          }
+        },
+        {
+          "name": "Client Accesses Admin Route (403)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Forbidden', () => pm.response.to.have.status(403));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{clientToken}}" }],
+            "url": "{{baseUrl}}/api/admin/membership-types"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reception",
+      "item": [
+        {
+          "name": "Search All Clients",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Array returned', () => pm.expect(pm.response.json()).to.be.an('array'));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{receptionToken}}" }],
+            "url": "{{baseUrl}}/api/reception/clients"
+          }
+        },
+        {
+          "name": "Search Client by Email",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{receptionToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/reception/clients?query=client1@fit.com",
+              "query": [{ "key": "query", "value": "client1@fit.com" }]
+            }
+          }
+        },
+        {
+          "name": "Create New Client",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{receptionToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/reception/clients",
+            "body": { "mode": "raw", "raw": "{\n  \"firstName\": \"Офлайн\",\n  \"lastName\": \"Клиент\",\n  \"email\": \"offline@test.com\",\n  \"phone\": \"+79001112233\",\n  \"password\": \"temp1234\",\n  \"birthDate\": \"1988-03-10\"\n}" }
+          }
+        },
+        {
+          "name": "Register Membership for Client",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{receptionToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/reception/memberships",
+            "body": { "mode": "raw", "raw": "{\n  \"clientId\": {{clientId}},\n  \"typeId\": 2,\n  \"startDate\": \"2026-04-20\"\n}" }
+          }
+        },
+        {
+          "name": "Mark Visit",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200 or 400', () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{receptionToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/reception/visits",
+            "body": { "mode": "raw", "raw": "{\n  \"clientId\": {{clientId}}\n}" }
+          }
+        },
+        {
+          "name": "Today Visits",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{receptionToken}}" }],
+            "url": "{{baseUrl}}/api/reception/visits/today"
+          }
+        },
+        {
+          "name": "Get Active Memberships",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{receptionToken}}" }],
+            "url": "{{baseUrl}}/api/reception/memberships/active"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Get All Membership Types",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/api/admin/membership-types"
+          }
+        },
+        {
+          "name": "Create Membership Type",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.collectionVariables.set('newTypeId', String(pm.response.json().id));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/admin/membership-types",
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"VIP — 12 месяцев\",\n  \"durationDays\": 365,\n  \"price\": 19990\n}" }
+          }
+        },
+        {
+          "name": "Update Membership Type",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/admin/membership-types/1",
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"1 месяц — безлимит (обновлено)\",\n  \"durationDays\": 30,\n  \"price\": 2700,\n  \"active\": true\n}" }
+          }
+        },
+        {
+          "name": "Deactivate Membership Type",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 204', () => pm.response.to.have.status(204));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/api/admin/membership-types/{{newTypeId}}"
+          }
+        },
+        {
+          "name": "Revenue Report (current month)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "var r = pm.response.json();",
+            "pm.test('Has totalRevenue', () => pm.expect(r).to.have.property('totalRevenue'));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/reports/revenue?from=2026-04-01&to=2026-04-30",
+              "query": [
+                { "key": "from", "value": "2026-04-01" },
+                { "key": "to", "value": "2026-04-30" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Staff",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/api/admin/users"
+          }
+        },
+        {
+          "name": "Create Staff (Trainer)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/admin/users",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"trainer3@fit.com\",\n  \"password\": \"trainer3pass\",\n  \"firstName\": \"Дмитрий\",\n  \"lastName\": \"Новиков\",\n  \"phone\": \"+79007778899\",\n  \"role\": \"TRAINER\",\n  \"specialization\": \"Кардио и HIIT\",\n  \"bio\": \"Специалист по функциональным тренировкам\"\n}" }
+          }
+        },
+        {
+          "name": "Create Staff (Reception)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/admin/users",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"reception2@fit.com\",\n  \"password\": \"recpass123\",\n  \"firstName\": \"Светлана\",\n  \"lastName\": \"Иванова\",\n  \"phone\": \"+79001234599\",\n  \"role\": \"RECEPTION\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Trainer",
+      "item": [
+        {
+          "name": "Get My Schedule",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{trainer1Token}}" }],
+            "url": "{{baseUrl}}/api/trainer/bookings"
+          }
+        },
+        {
+          "name": "Confirm Booking",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200 or 400', () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{trainer1Token}}" }],
+            "url": "{{baseUrl}}/api/trainer/bookings/{{bookingId}}/confirm"
+          }
+        },
+        {
+          "name": "Cancel Booking by Trainer",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 204 or 400', () => pm.expect(pm.response.code).to.be.oneOf([204, 400]));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{trainer1Token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/trainer/bookings/{{bookingId}}/cancel",
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Тренер заболел\"\n}" }
+          }
+        },
+        {
+          "name": "Get My Clients",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{trainer1Token}}" }],
+            "url": "{{baseUrl}}/api/trainer/clients"
+          }
+        },
+        {
+          "name": "Get Client Workout Program",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200 or 204', () => pm.expect(pm.response.code).to.be.oneOf([200, 204]));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{trainer1Token}}" }],
+            "url": "{{baseUrl}}/api/trainer/clients/{{clientId}}/workout-program"
+          }
+        },
+        {
+          "name": "Create Workout Program for Client",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if(pm.response.code === 200) {",
+            "  pm.collectionVariables.set('programId', String(pm.response.json().id));",
+            "  pm.test('Program created', () => pm.response.to.have.status(200));",
+            "}"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{trainer1Token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/trainer/clients/{{clientId}}/workout-program",
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Программа для набора массы\",\n  \"exercises\": [\n    {\n      \"exerciseName\": \"Жим штанги лёжа\",\n      \"sets\": 4,\n      \"reps\": \"8-10\",\n      \"weight\": \"80 кг\",\n      \"dayNumber\": 1,\n      \"orderIndex\": 0\n    },\n    {\n      \"exerciseName\": \"Приседания со штангой\",\n      \"sets\": 4,\n      \"reps\": \"8-10\",\n      \"weight\": \"100 кг\",\n      \"dayNumber\": 1,\n      \"orderIndex\": 1\n    },\n    {\n      \"exerciseName\": \"Становая тяга\",\n      \"sets\": 3,\n      \"reps\": \"6-8\",\n      \"weight\": \"120 кг\",\n      \"dayNumber\": 2,\n      \"orderIndex\": 0\n    },\n    {\n      \"exerciseName\": \"Подтягивания\",\n      \"sets\": 3,\n      \"reps\": \"максимум\",\n      \"weight\": \"\",\n      \"dayNumber\": 2,\n      \"orderIndex\": 1\n    }\n  ]\n}" }
+          }
+        },
+        {
+          "name": "Update Workout Program",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{trainer1Token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/trainer/clients/{{clientId}}/workout-program/{{programId}}",
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Программа для набора массы v2\",\n  \"exercises\": [\n    {\n      \"exerciseName\": \"Жим гантелей\",\n      \"sets\": 3,\n      \"reps\": \"12\",\n      \"weight\": \"30 кг\",\n      \"dayNumber\": 1,\n      \"orderIndex\": 0\n    }\n  ]\n}" }
+          }
+        },
+        {
+          "name": "Get All My Programs",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{trainer1Token}}" }],
+            "url": "{{baseUrl}}/api/trainer/programs"
+          }
+        },
+        {
+          "name": "Get Trainer Notifications",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{trainer1Token}}" }],
+            "url": "{{baseUrl}}/api/trainer/notifications"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Security Tests",
+      "item": [
+        {
+          "name": "No Token → 401",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Unauthorized', () => pm.response.to.have.status(401));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/client/memberships/types"
+          }
+        },
+        {
+          "name": "Wrong Token → 401",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Unauthorized', () => pm.response.to.have.status(401));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer invalid.token.here" }],
+            "url": "{{baseUrl}}/api/client/memberships/types"
+          }
+        },
+        {
+          "name": "Trainer Access Admin → 403",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Forbidden', () => pm.response.to.have.status(403));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{trainer1Token}}" }],
+            "url": "{{baseUrl}}/api/admin/users"
+          }
+        },
+        {
+          "name": "Admin Access Client → 403",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Forbidden', () => pm.response.to.have.status(403));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/api/client/bookings"
+          }
+        }
+      ]
+    }
+  ]
+}

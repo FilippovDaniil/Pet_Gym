@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew compileJava)",
+      "Bash(./gradlew --version)",
+      "Bash(./gradlew test *)",
+      "Bash(./gradlew bootRun --args='--spring.profiles.active=')",
+      "Bash(curl -s http://localhost:8080/api/auth/login -X POST -H \"Content-Type: application/json\" -d '{\"email\":\"admin@fit.com\",\"password\":\"admin\"}')",
+      "Bash(netstat -ano)",
+      "Bash(findstr :8080)",
+      "Bash(taskkill /F /PID 3980)",
+      "Bash(awk '{print $5}')",
+      "Bash(xargs -I{} taskkill /F /PID {})",
+      "Bash(pkill -f \"Pet_Gym\")",
+      "Bash(cmd /c \"taskkill /F /PID 4356\")",
+      "Bash(curl -s http://localhost:8090/api/auth/login -X POST -H \"Content-Type: application/json\" -d '{\"email\":\"admin@fit.com\",\"password\":\"admin\"}')",
+      "Bash(curl -s http://localhost:8090/api/auth/register -X POST -H \"Content-Type: application/json\" -d '{\"email\":\"newuser@test.com\",\"password\":\"pass123\",\"firstName\":\"Тест\",\"lastName\":\"Юзер\"}')",
+      "Bash(curl -s http://localhost:8090/api/auth/login -X POST -H \"Content-Type: application/json\" -d '{\"email\":\"client1@fit.com\",\"password\":\"client1\"}')",
+      "Bash(pkill -f \"bootRun\")",
+      "Bash(pkill -f \"PetGymApplication\")",
+      "Bash(./gradlew bootRun --stacktrace)",
+      "Bash(./gradlew dependencies *)",
+      "Bash(./gradlew bootRun)",
+      "Bash(wait)",
+      "Bash(curl -s http://localhost:8091/api/auth/login -X POST -H 'Content-Type: application/json' -d '{\"email\":\"admin@fit.com\",\"password\":\"admin\"}')",
+      "Bash(curl -s http://localhost:8091/api/auth/login -X POST -H 'Content-Type: application/json' -d '{\"email\":\"client1@fit.com\",\"password\":\"client1\"}')",
+      "Bash(pkill -f \"PetGymApplication\\\\|bootRun\")"
+    ]
+  }
+}
