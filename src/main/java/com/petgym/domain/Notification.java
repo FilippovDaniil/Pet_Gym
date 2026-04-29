@@ -6,7 +6,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "notifications")
+@Table(name = "notifications") // таблица уведомлений (для клиентов и тренеров)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -20,16 +20,16 @@ public class Notification {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    private User user; // кому адресовано уведомление
 
     @Column(nullable = false)
-    private String message;
+    private String message; // текст уведомления
 
     @Column(name = "is_read", nullable = false)
-    private boolean read;
+    private boolean read; // прочитано ли уведомление (false = новое)
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
+    private LocalDateTime createdAt; // когда создано
 
     @PrePersist
     protected void onCreate() {

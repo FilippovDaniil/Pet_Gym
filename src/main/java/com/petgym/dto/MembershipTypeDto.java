@@ -8,20 +8,21 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 
+// DTO вида абонемента — используется и для чтения, и для создания/обновления
 @Data
 @Builder
 public class MembershipTypeDto {
-    private Long id;
+    private Long id; // null при создании нового вида
 
-    @NotBlank
+    @NotBlank // название обязательно
     private String name;
 
     @NotNull
-    @Min(1)
+    @Min(1) // срок минимум 1 день
     private Integer durationDays;
 
     @NotNull
-    private BigDecimal price;
+    private BigDecimal price; // цена
 
-    private boolean active;
+    private boolean active; // активен ли вид (можно ли купить)
 }

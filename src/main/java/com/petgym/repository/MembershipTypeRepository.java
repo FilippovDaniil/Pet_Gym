@@ -8,5 +8,7 @@ import java.util.List;
 
 @Repository
 public interface MembershipTypeRepository extends JpaRepository<MembershipType, Long> {
-    List<MembershipType> findByIsActiveTrue();
+    // Spring Data разбирает имя метода: findBy + IsActive + True
+    // генерирует SQL: WHERE is_active = true
+    List<MembershipType> findByIsActiveTrue(); // получить только активные (продаваемые) виды абонементов
 }

@@ -33,15 +33,17 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final MembershipService membershipService;
 
+    // Поиск клиентов по email или телефону (для ресепшена: находит клиента у стойки)
     @Transactional(readOnly = true)
     public List<ClientDto> searchClients(String query) {
         List<User> users = userRepository.findByEmailContainingIgnoreCaseOrPhoneContaining(query, query);
         return users.stream()
-                .filter(u -> u.getRole() == Role.CLIENT)
+                .filter(u -> u.getRole() == Role.CLIENT) // оставляем только клиентов
                 .map(u -> toClientDto(u, clientRepository.findByUserId(u.getId()).orElse(null)))
                 .collect(Collectors.toList());
     }
 
+    // Получить всех клиентов (для ресепшена)
     @Transactional(readOnly = true)
     public List<ClientDto> getAllClients() {
         return userRepository.findByRole(Role.CLIENT).stream()
@@ -49,6 +51,7 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    // Создать нового клиента вручную (сотрудник ресепшена регистрирует клиента у стойки)
     @Transactional
     public ClientDto createClient(UserDto dto, String password, LocalDate birthDate) {
         if (userRepository.existsByEmail(dto.getEmail())) {
@@ -56,6 +59,7 @@ public class UserService {
         }
         User user = User.builder()
                 .email(dto.getEmail())
+                // если пароль не передан — ставим "changeme" (клиент потом поменяет)
                 .password(passwordEncoder.encode(password != null ? password : "changeme"))
                 .firstName(dto.getFirstName())
                 .lastName(dto.getLastName())
@@ -70,6 +74,7 @@ public class UserService {
         return toClientDto(user, client);
     }
 
+    // Создать сотрудника (администратор добавляет тренера или сотрудника ресепшена)
     @Transactional
     public UserDto createStaff(UserDto dto, String password, String specialization, String bio) {
         if (userRepository.existsByEmail(dto.getEmail())) {
@@ -81,10 +86,12 @@ public class UserService {
                 .firstName(dto.getFirstName())
                 .lastName(dto.getLastName())
                 .phone(dto.getPhone())
-                .role(dto.getRole())
+                .role(dto.getRole()) // роль задаёт администратор (TRAINER или RECEPTION)
                 .enabled(true)
                 .build();
         user = userRepository.save(user);
+
+        // если создаём тренера — дополнительно сохраняем данные специализации
         if (dto.getRole() == Role.TRAINER) {
             Trainer trainer = Trainer.builder()
                     .user(user)
@@ -97,12 +104,13 @@ public class UserService {
         return toUserDto(user);
     }
 
+    // Получить всех тренеров (для отображения клиентам и тренеру)
     @Transactional(readOnly = true)
     public List<TrainerDto> getAllTrainers() {
-        return trainerRepository.findAll().stream()
+        return trainerRepository.findAll().stream() // берём из таблицы trainers, где есть специализация
                 .map(t -> TrainerDto.builder()
                         .id(t.getUserId())
-                        .firstName(t.getUser().getFirstName())
+                        .firstName(t.getUser().getFirstName())   // данные из связанного User
                         .lastName(t.getUser().getLastName())
                         .email(t.getUser().getEmail())
                         .phone(t.getUser().getPhone())
@@ -112,14 +120,16 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    // Получить всех сотрудников (не клиентов) — для администратора
     @Transactional(readOnly = true)
     public List<UserDto> getAllStaff() {
         return userRepository.findAll().stream()
-                .filter(u -> u.getRole() != Role.CLIENT)
+                .filter(u -> u.getRole() != Role.CLIENT) // исключаем клиентов
                 .map(this::toUserDto)
                 .collect(Collectors.toList());
     }
 
+    // Entity User + Client → ClientDto (объединяем данные из двух таблиц)
     private ClientDto toClientDto(User user, Client client) {
         return ClientDto.builder()
                 .id(user.getId())
@@ -127,13 +137,14 @@ public class UserService {
                 .firstName(user.getFirstName())
                 .lastName(user.getLastName())
                 .phone(user.getPhone())
-                .birthDate(client != null ? client.getBirthDate() : null)
+                .birthDate(client != null ? client.getBirthDate() : null) // client может быть null (запись ещё не создана)
                 .createdAt(user.getCreatedAt())
                 .enabled(user.isEnabled())
-                .hasActiveMembership(membershipService.hasActiveMembership(user.getId(), LocalDate.now()))
+                .hasActiveMembership(membershipService.hasActiveMembership(user.getId(), LocalDate.now())) // проверяем сейчас
                 .build();
     }
 
+    // Entity User → UserDto (без пароля)
     private UserDto toUserDto(User user) {
         return UserDto.builder()
                 .id(user.getId())

@@ -3,6 +3,7 @@ package com.petgym.dto;
 import lombok.Builder;
 import lombok.Data;
 
+// DTO тренера — публичные данные для списка тренеров (видят клиенты)
 @Data
 @Builder
 public class TrainerDto {
@@ -11,6 +12,6 @@ public class TrainerDto {
     private String lastName;
     private String email;
     private String phone;
-    private String specialization;
-    private String bio;
+    private String specialization; // специализация, например "Йога и растяжка"
+    private String bio;            // биография / описание тренера
 }

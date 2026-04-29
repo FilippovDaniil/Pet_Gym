@@ -21,29 +21,34 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
 
+    // Отправить уведомление пользователю (сохраняем в БД, пользователь увидит при следующем запросе)
     @Transactional
     public void send(Long userId, String message) {
+        // getReferenceById — возвращает прокси без SELECT-запроса (нам нужен только id для FK)
         User user = userRepository.getReferenceById(userId);
         Notification notification = Notification.builder()
                 .user(user)
                 .message(message)
-                .read(false)
+                .read(false) // новое уведомление всегда непрочитано
                 .build();
         notificationRepository.save(notification);
         log.info("Notification sent to user {}: {}", userId, message);
     }
 
+    // Получить непрочитанные уведомления пользователя
     @Transactional(readOnly = true)
     public List<NotificationDto> getMyNotifications(Long userId) {
         return notificationRepository.findByUserIdAndReadFalseOrderByCreatedAtDesc(userId)
                 .stream().map(this::toDto).collect(Collectors.toList());
     }
 
+    // Пометить все уведомления пользователя как прочитанные (одним UPDATE-запросом)
     @Transactional
     public void markAllRead(Long userId) {
         notificationRepository.markAllAsReadByUserId(userId);
     }
 
+    // Entity Notification → DTO NotificationDto
     private NotificationDto toDto(Notification n) {
         return NotificationDto.builder()
                 .id(n.getId())

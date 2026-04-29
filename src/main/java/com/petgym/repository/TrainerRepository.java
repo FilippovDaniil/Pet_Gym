@@ -8,5 +8,5 @@ import java.util.Optional;
 
 @Repository
 public interface TrainerRepository extends JpaRepository<Trainer, Long> {
-    Optional<Trainer> findByUserId(Long userId);
+    Optional<Trainer> findByUserId(Long userId); // найти тренера по id пользователя (PK совпадает с users.id)
 }

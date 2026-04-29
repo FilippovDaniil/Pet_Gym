@@ -8,5 +8,6 @@ import java.util.Optional;
 
 @Repository
 public interface ClientRepository extends JpaRepository<Client, Long> {
-    Optional<Client> findByUserId(Long userId);
+    // Client хранится с PK = userId, поэтому ищем именно по userId
+    Optional<Client> findByUserId(Long userId); // найти запись клиента по id пользователя
 }

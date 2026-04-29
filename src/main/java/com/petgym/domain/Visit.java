@@ -7,7 +7,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "visits")
+@Table(name = "visits") // журнал посещений клуба
 @Getter
 @Setter
 @NoArgsConstructor
@@ -21,20 +21,20 @@ public class Visit {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "client_id", nullable = false)
-    private User client;
+    private User client; // кто пришёл
 
     @Column(name = "visit_date", nullable = false)
-    private LocalDate visitDate;
+    private LocalDate visitDate; // дата посещения (только дата, без времени)
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "marked_by")
+    @JoinColumn(name = "marked_by") // кто отметил посещение (сотрудник ресепшен), может быть null
     private User markedBy;
 
     @Column(name = "marked_at", nullable = false)
-    private LocalDateTime markedAt;
+    private LocalDateTime markedAt; // точный момент отметки (дата + время)
 
     @PrePersist
     protected void onCreate() {
-        if (markedAt == null) markedAt = LocalDateTime.now();
+        if (markedAt == null) markedAt = LocalDateTime.now(); // фиксируем текущий момент при создании
     }
 }

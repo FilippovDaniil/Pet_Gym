@@ -6,6 +6,8 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+// DTO для передачи данных о пользователе (без пароля!)
+// Используется в API, чтобы никогда не отдавать хэш пароля наружу
 @Data
 @Builder
 public class UserDto {
@@ -14,7 +16,7 @@ public class UserDto {
     private String firstName;
     private String lastName;
     private String phone;
-    private Role role;
-    private LocalDateTime createdAt;
-    private boolean enabled;
+    private Role role;            // роль пользователя
+    private LocalDateTime createdAt; // дата регистрации
+    private boolean enabled;      // активен ли аккаунт
 }

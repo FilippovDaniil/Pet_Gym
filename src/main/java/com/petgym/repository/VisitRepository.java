@@ -12,10 +12,13 @@ import java.util.List;
 @Repository
 public interface VisitRepository extends JpaRepository<Visit, Long> {
 
+    // JOIN FETCH v.client — загружаем данные клиента сразу, чтобы не делать N+1 запросов
+    // нужно для отображения имени клиента в списке посещений за сегодня
     @Query("SELECT v FROM Visit v JOIN FETCH v.client WHERE v.visitDate = :date ORDER BY v.markedAt")
-    List<Visit> findByVisitDate(@Param("date") LocalDate date);
+    List<Visit> findByVisitDate(@Param("date") LocalDate date); // все посещения за указанную дату
 
-    List<Visit> findByClientIdOrderByVisitDateDesc(Long clientId);
+    List<Visit> findByClientIdOrderByVisitDateDesc(Long clientId); // история посещений клиента (новые первыми)
 
+    // проверить: был ли клиент уже сегодня? Чтобы не дать отметить дважды за один день
     boolean existsByClientIdAndVisitDate(Long clientId, LocalDate date);
 }

@@ -1,8 +1,10 @@
-package com.petgym.domain;
+package com.petgym.domain; // пакет доменных (бизнес) объектов
 
+// enum — перечисление: фиксированный список возможных значений
+// Используется, чтобы указать роль пользователя в системе
 public enum Role {
-    CLIENT,
-    TRAINER,
-    RECEPTION,
-    ADMIN
+    CLIENT,    // обычный клиент фитнес-клуба
+    TRAINER,   // тренер
+    RECEPTION, // сотрудник ресепшен
+    ADMIN      // администратор / бухгалтерия
 }
