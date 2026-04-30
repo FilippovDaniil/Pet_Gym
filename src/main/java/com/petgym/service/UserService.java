@@ -55,11 +55,11 @@ public class UserService {
     @Transactional
     public ClientDto createClient(UserDto dto, String password, LocalDate birthDate) {
         if (userRepository.existsByEmail(dto.getEmail())) {
+            log.warn("[WARN] event=CREATE_CLIENT_FAILED email={} reason=\"email уже занят\"", dto.getEmail());
             throw new BusinessException("Email уже используется");
         }
         User user = User.builder()
                 .email(dto.getEmail())
-                // если пароль не передан — ставим "changeme" (клиент потом поменяет)
                 .password(passwordEncoder.encode(password != null ? password : "changeme"))
                 .firstName(dto.getFirstName())
                 .lastName(dto.getLastName())
@@ -70,7 +70,8 @@ public class UserService {
         user = userRepository.save(user);
         Client client = Client.builder().user(user).birthDate(birthDate).build();
         clientRepository.save(client);
-        log.info("Client created by reception: {}", user.getEmail());
+        log.info("[RECEPTION] event=CLIENT_CREATED userId={} email={} name=\"{} {}\"",
+                user.getId(), user.getEmail(), user.getFirstName(), user.getLastName());
         return toClientDto(user, client);
     }
 
@@ -78,6 +79,7 @@ public class UserService {
     @Transactional
     public UserDto createStaff(UserDto dto, String password, String specialization, String bio) {
         if (userRepository.existsByEmail(dto.getEmail())) {
+            log.warn("[WARN] event=CREATE_STAFF_FAILED email={} role={} reason=\"email уже занят\"", dto.getEmail(), dto.getRole());
             throw new BusinessException("Email уже используется");
         }
         User user = User.builder()
@@ -100,7 +102,8 @@ public class UserService {
                     .build();
             trainerRepository.save(trainer);
         }
-        log.info("Staff created: {} [{}]", user.getEmail(), user.getRole());
+        log.info("[ADMIN] event=STAFF_CREATED userId={} email={} role={} name=\"{} {}\"",
+                user.getId(), user.getEmail(), user.getRole(), user.getFirstName(), user.getLastName());
         return toUserDto(user);
     }
 

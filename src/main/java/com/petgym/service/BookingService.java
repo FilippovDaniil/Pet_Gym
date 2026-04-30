@@ -41,15 +41,21 @@ public class BookingService {
 
         // Бизнес-правило 1: дата должна быть в будущем
         if (!start.isAfter(now)) {
+            log.warn("[WARN] event=BOOKING_REJECTED clientId={} trainerId={} start={} reason=\"дата в прошлом\"",
+                    clientId, request.getTrainerId(), start);
             throw new BusinessException("Дата бронирования должна быть в будущем");
         }
         // Бизнес-правило 2: нельзя бронировать более чем за 30 дней
         if (start.isAfter(now.plusDays(30))) {
+            log.warn("[WARN] event=BOOKING_REJECTED clientId={} trainerId={} start={} reason=\"более 30 дней вперёд\"",
+                    clientId, request.getTrainerId(), start);
             throw new BusinessException("Бронирование возможно не более чем за 30 дней вперёд");
         }
 
         // Бизнес-правило 3: у клиента должен быть активный абонемент на день тренировки
         if (!membershipService.hasActiveMembership(clientId, start.toLocalDate())) {
+            log.warn("[WARN] event=BOOKING_REJECTED clientId={} trainerId={} start={} reason=\"нет активного абонемента\"",
+                    clientId, request.getTrainerId(), start);
             throw new MembershipExpiredException("У вас нет активного абонемента на дату тренировки");
         }
 
@@ -57,6 +63,8 @@ public class BookingService {
         long futureCount = bookingRepository.countFutureBookingsByClientAndTrainer(
                 clientId, request.getTrainerId(), now);
         if (futureCount >= 2) {
+            log.warn("[WARN] event=BOOKING_REJECTED clientId={} trainerId={} start={} reason=\"лимит 2 брони у тренера\" count={}",
+                    clientId, request.getTrainerId(), start, futureCount);
             throw new BookingConflictException("Нельзя иметь более 2 будущих бронирований у одного тренера");
         }
 
@@ -64,6 +72,8 @@ public class BookingService {
         List<TrainingBooking> conflicts = bookingRepository.findConflictingBookings(
                 request.getTrainerId(), start, end);
         if (!conflicts.isEmpty()) {
+            log.warn("[WARN] event=BOOKING_REJECTED clientId={} trainerId={} start={} reason=\"слот занят\"",
+                    clientId, request.getTrainerId(), start);
             throw new BookingConflictException("Тренер уже занят в это время");
         }
 
@@ -82,10 +92,11 @@ public class BookingService {
                 .build();
         booking = bookingRepository.save(booking);
 
-        // Уведомляем тренера о новой тренировке
         notificationService.send(trainer.getId(),
                 String.format("Новая тренировка: %s %s в %s", client.getFirstName(), client.getLastName(), start));
-        log.info("Booking created: clientId={}, trainerId={}, start={}", clientId, request.getTrainerId(), start);
+        log.info("[CLIENT] event=BOOKING_CREATED bookingId={} clientId={} clientEmail={} trainerId={} trainerName=\"{} {}\" start={}",
+                booking.getId(), clientId, client.getEmail(),
+                trainer.getId(), trainer.getFirstName(), trainer.getLastName(), start);
         return toDto(booking);
     }
 
@@ -95,29 +106,30 @@ public class BookingService {
         TrainingBooking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
 
-        // проверяем, что это бронирование принадлежит текущему клиенту
         if (!booking.getClient().getId().equals(clientId)) {
+            log.warn("[WARN] event=CANCEL_REJECTED bookingId={} clientId={} reason=\"чужое бронирование\"", bookingId, clientId);
             throw new BusinessException("Это не ваше бронирование");
         }
-        // нельзя отменить уже отменённое
         if (booking.getStatus() == BookingStatus.CANCELLED_BY_CLIENT
                 || booking.getStatus() == BookingStatus.CANCELLED_BY_TRAINER) {
+            log.warn("[WARN] event=CANCEL_REJECTED bookingId={} clientId={} reason=\"уже отменено\" status={}", bookingId, clientId, booking.getStatus());
             throw new InvalidCancellationException("Бронирование уже отменено");
         }
-        // нельзя отменить менее чем за 2 часа до тренировки
         if (LocalDateTime.now().isAfter(booking.getStartDateTime().minusHours(2))) {
+            log.warn("[WARN] event=CANCEL_REJECTED bookingId={} clientId={} reason=\"менее 2 часов до начала\" start={}", bookingId, clientId, booking.getStartDateTime());
             throw new InvalidCancellationException("Отмена невозможна менее чем за 2 часа до тренировки");
         }
 
         booking.setStatus(BookingStatus.CANCELLED_BY_CLIENT);
         bookingRepository.save(booking);
 
-        // уведомляем тренера об отмене
         notificationService.send(booking.getTrainer().getId(),
                 String.format("Клиент %s %s отменил тренировку %s",
                         booking.getClient().getFirstName(), booking.getClient().getLastName(),
                         booking.getStartDateTime()));
-        log.info("Booking {} cancelled by client {}", bookingId, clientId);
+        log.info("[CLIENT] event=BOOKING_CANCELLED bookingId={} clientId={} clientEmail={} trainerId={} start={}",
+                bookingId, clientId, booking.getClient().getEmail(),
+                booking.getTrainer().getId(), booking.getStartDateTime());
     }
 
     // Отмена бронирования тренером
@@ -126,24 +138,26 @@ public class BookingService {
         TrainingBooking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
 
-        // проверяем, что бронирование принадлежит этому тренеру
         if (!booking.getTrainer().getId().equals(trainerId)) {
+            log.warn("[WARN] event=CANCEL_REJECTED bookingId={} trainerId={} reason=\"чужое бронирование\"", bookingId, trainerId);
             throw new BusinessException("Это не ваше бронирование");
         }
         if (booking.getStatus() == BookingStatus.CANCELLED_BY_CLIENT
                 || booking.getStatus() == BookingStatus.CANCELLED_BY_TRAINER) {
+            log.warn("[WARN] event=CANCEL_REJECTED bookingId={} trainerId={} reason=\"уже отменено\" status={}", bookingId, trainerId, booking.getStatus());
             throw new InvalidCancellationException("Бронирование уже отменено");
         }
 
         booking.setStatus(BookingStatus.CANCELLED_BY_TRAINER);
-        booking.setCancellationReason(reason); // сохраняем причину отмены
+        booking.setCancellationReason(reason);
         bookingRepository.save(booking);
 
-        // уведомляем клиента об отмене с указанием причины
         notificationService.send(booking.getClient().getId(),
                 String.format("Тренер отменил вашу тренировку %s. Причина: %s",
                         booking.getStartDateTime(), reason));
-        log.info("Booking {} cancelled by trainer {}. Reason: {}", bookingId, trainerId, reason);
+        log.info("[TRAINER] event=BOOKING_CANCELLED bookingId={} trainerId={} clientId={} clientEmail={} start={} reason=\"{}\"",
+                bookingId, trainerId, booking.getClient().getId(),
+                booking.getClient().getEmail(), booking.getStartDateTime(), reason);
     }
 
     // Получить все бронирования клиента (история)
@@ -192,11 +206,14 @@ public class BookingService {
         TrainingBooking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
         if (!booking.getTrainer().getId().equals(trainerId)) {
+            log.warn("[WARN] event=CONFIRM_REJECTED bookingId={} trainerId={} reason=\"чужое бронирование\"", bookingId, trainerId);
             throw new BusinessException("Это не ваше бронирование");
         }
         booking.setStatus(BookingStatus.CONFIRMED);
         bookingRepository.save(booking);
-        log.info("Booking {} confirmed by trainer {}", bookingId, trainerId);
+        log.info("[TRAINER] event=BOOKING_CONFIRMED bookingId={} trainerId={} clientId={} clientEmail={} start={}",
+                bookingId, trainerId, booking.getClient().getId(),
+                booking.getClient().getEmail(), booking.getStartDateTime());
         return toDto(booking);
     }
 

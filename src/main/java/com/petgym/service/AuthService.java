@@ -32,31 +32,30 @@ public class AuthService {
     // Регистрация нового клиента
     @Transactional // если что-то упадёт — откатим и User, и Client
     public AuthResponse register(RegisterRequest request) {
-        // проверяем, не занят ли email
         if (userRepository.existsByEmail(request.getEmail())) {
+            log.warn("[WARN] event=REGISTER_FAILED email={} reason=\"email уже занят\"", request.getEmail());
             throw new BusinessException("Email уже используется: " + request.getEmail());
         }
 
-        // создаём запись пользователя
         User user = User.builder()
                 .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword())) // хэшируем пароль
+                .password(passwordEncoder.encode(request.getPassword()))
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
                 .phone(request.getPhone())
-                .role(Role.CLIENT) // при самостоятельной регистрации — всегда CLIENT
+                .role(Role.CLIENT)
                 .enabled(true)
                 .build();
-        user = userRepository.save(user); // сохраняем, JPA заполняет id
+        user = userRepository.save(user);
 
-        // создаём запись клиента с датой рождения
         Client client = Client.builder()
                 .user(user)
                 .birthDate(request.getBirthDate())
                 .build();
         clientRepository.save(client);
 
-        log.info("Registered new client: {}", user.getEmail());
+        log.info("[AUTH] event=REGISTER userId={} email={} name=\"{} {}\"",
+                user.getId(), user.getEmail(), user.getFirstName(), user.getLastName());
         String token = tokenProvider.generateToken(user.getId(), user.getRole().name()); // генерируем JWT
         return buildAuthResponse(user, token); // возвращаем токен + данные пользователя
     }
@@ -70,7 +69,7 @@ public class AuthService {
 
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new BusinessException("Пользователь не найден"));
-        log.info("User logged in: {} [{}]", user.getEmail(), user.getRole());
+        log.info("[AUTH] event=LOGIN userId={} email={} role={}", user.getId(), user.getEmail(), user.getRole());
         String token = tokenProvider.generateToken(user.getId(), user.getRole().name());
         return buildAuthResponse(user, token);
     }

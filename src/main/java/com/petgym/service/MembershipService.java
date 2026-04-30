@@ -58,7 +58,8 @@ public class MembershipService {
                 .isActive(true) // новый тип сразу активен
                 .build();
         type = typeRepository.save(type);
-        log.info("Created membership type: {}", type.getName());
+        log.info("[ADMIN] event=MEMBERSHIP_TYPE_CREATED typeId={} name=\"{}\" durationDays={} price={}",
+                type.getId(), type.getName(), type.getDurationDays(), type.getPrice());
         return toTypeDto(type);
     }
 
@@ -70,8 +71,9 @@ public class MembershipService {
         type.setName(dto.getName());
         type.setDurationDays(dto.getDurationDays());
         type.setPrice(dto.getPrice());
-        type.setActive(dto.isActive()); // можно деактивировать через обновление
-        log.info("Updated membership type id={}", id);
+        type.setActive(dto.isActive());
+        log.info("[ADMIN] event=MEMBERSHIP_TYPE_UPDATED typeId={} name=\"{}\" price={} active={}",
+                id, dto.getName(), dto.getPrice(), dto.isActive());
         return toTypeDto(typeRepository.save(type));
     }
 
@@ -80,9 +82,9 @@ public class MembershipService {
     public void deleteType(Long id) {
         MembershipType type = typeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("MembershipType", id));
-        type.setActive(false); // мягкое удаление
+        type.setActive(false);
         typeRepository.save(type);
-        log.info("Deactivated membership type id={}", id);
+        log.info("[ADMIN] event=MEMBERSHIP_TYPE_DEACTIVATED typeId={} name=\"{}\"", id, type.getName());
     }
 
     // Оформить покупку абонемента клиенту (ресепшен или сам клиент)
@@ -94,26 +96,27 @@ public class MembershipService {
                 .orElseThrow(() -> new ResourceNotFoundException("MembershipType", typeId));
 
         if (!type.isActive()) {
-            throw new BusinessException("Тип абонемента неактивен"); // нельзя купить снятый с продажи тип
+            log.warn("[WARN] event=BUY_MEMBERSHIP_REJECTED clientId={} typeId={} reason=\"тип деактивирован\"", clientId, typeId);
+            throw new BusinessException("Тип абонемента неактивен");
         }
 
-        boolean hasActive = hasActiveMembership(clientId, startDate);
-        if (hasActive) {
-            // разрешаем купить ещё один абонемент (перекрытие разрешено — клиент продлевает заранее)
-            log.info("Client {} already has active membership, adding a new one (overlap allowed)", clientId);
+        if (hasActiveMembership(clientId, startDate)) {
+            log.info("[CLIENT] event=MEMBERSHIP_OVERLAP clientId={} clientEmail={} typeId={} note=\"уже есть активный, продление разрешено\"",
+                    clientId, client.getEmail(), typeId);
         }
 
-        LocalDate endDate = startDate.plusDays(type.getDurationDays()); // вычисляем дату окончания
+        LocalDate endDate = startDate.plusDays(type.getDurationDays());
 
         Purchase purchase = Purchase.builder()
                 .client(client)
                 .membershipType(type)
                 .startDate(startDate)
                 .endDate(endDate)
-                .paidAmount(type.getPrice()) // фиксируем цену на момент покупки
+                .paidAmount(type.getPrice())
                 .build();
         purchase = purchaseRepository.save(purchase);
-        log.info("Purchase created: clientId={}, typeId={}, start={}, end={}", clientId, typeId, startDate, endDate);
+        log.info("[CLIENT] event=MEMBERSHIP_BOUGHT purchaseId={} clientId={} clientEmail={} typeName=\"{}\" amount={} from={} to={}",
+                purchase.getId(), clientId, client.getEmail(), type.getName(), type.getPrice(), startDate, endDate);
         return toPurchaseDto(purchase);
     }
 

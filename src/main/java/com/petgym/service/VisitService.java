@@ -31,12 +31,12 @@ public class VisitService {
     public VisitDto markVisit(Long clientId, Long markedByUserId) {
         LocalDate today = LocalDate.now();
 
-        // проверяем, есть ли активный абонемент на сегодня
         if (!membershipService.hasActiveMembership(clientId, today)) {
+            log.warn("[WARN] event=VISIT_REJECTED clientId={} markedBy={} reason=\"нет активного абонемента\" date={}", clientId, markedByUserId, today);
             throw new MembershipExpiredException("У клиента нет активного абонемента");
         }
-        // один клиент — одно посещение в день
         if (visitRepository.existsByClientIdAndVisitDate(clientId, today)) {
+            log.warn("[WARN] event=VISIT_REJECTED clientId={} markedBy={} reason=\"уже отмечен сегодня\" date={}", clientId, markedByUserId, today);
             throw new BusinessException("Посещение уже отмечено сегодня");
         }
 
@@ -48,10 +48,12 @@ public class VisitService {
         Visit visit = Visit.builder()
                 .client(client)
                 .visitDate(today)
-                .markedBy(markedBy) // кто отметил посещение
+                .markedBy(markedBy)
                 .build();
         visit = visitRepository.save(visit);
-        log.info("Visit marked for client {} by {}", clientId, markedByUserId);
+        log.info("[RECEPTION] event=VISIT_MARKED visitId={} clientId={} clientEmail={} markedBy=\"{} {}\" date={}",
+                visit.getId(), clientId, client.getEmail(),
+                markedBy.getFirstName(), markedBy.getLastName(), today);
         return toDto(visit);
     }
 

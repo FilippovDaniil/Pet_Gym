@@ -4,6 +4,7 @@ import com.petgym.dto.report.RevenueReportDto;
 import com.petgym.repository.PurchaseRepository;
 import com.petgym.repository.TrainingBookingRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReportService {
@@ -49,11 +51,14 @@ public class ReportService {
         // общее количество тренировок (CONFIRMED + COMPLETED) за всё время
         long trainingsCount = bookingRepository.countCompletedAndConfirmed();
 
-        return RevenueReportDto.builder()
-                .totalRevenue(total != null ? total : BigDecimal.ZERO) // защита от null (если продаж не было)
+        RevenueReportDto report = RevenueReportDto.builder()
+                .totalRevenue(total != null ? total : BigDecimal.ZERO)
                 .totalMembershipsSold(totalSold)
                 .totalTrainingsCount(trainingsCount)
                 .membershipsByType(typeMap)
                 .build();
+        log.info("[ADMIN] event=REVENUE_REPORT from={} to={} totalRevenue={} membershipsSold={} trainingsCount={}",
+                from, to, report.getTotalRevenue(), totalSold, trainingsCount);
+        return report;
     }
 }

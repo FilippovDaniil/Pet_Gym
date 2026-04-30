@@ -31,8 +31,8 @@ public class WorkoutService {
     // Создать программу тренировок для клиента (тренер)
     @Transactional
     public WorkoutProgramDto createProgram(Long trainerId, Long clientId, WorkoutProgramDto dto) {
-        // программу нельзя создать клиенту без активного абонемента
         if (!membershipService.hasActiveMembership(clientId, java.time.LocalDate.now())) {
+            log.warn("[WARN] event=PROGRAM_REJECTED trainerId={} clientId={} reason=\"у клиента нет активного абонемента\"", trainerId, clientId);
             throw new BusinessException("У клиента нет активного абонемента");
         }
         User trainer = userRepository.findById(trainerId)
@@ -53,8 +53,10 @@ public class WorkoutService {
                     .collect(Collectors.toList());
             program.getExercises().addAll(exercises); // cascade=ALL сохранит упражнения вместе с программой
         }
-        WorkoutProgram saved = programRepository.save(program); // сохраняем программу вместе с упражнениями
-        log.info("Workout program created by trainer {} for client {}: {}", trainerId, clientId, dto.getName());
+        WorkoutProgram saved = programRepository.save(program);
+        log.info("[TRAINER] event=PROGRAM_CREATED programId={} trainerId={} trainerEmail={} clientId={} clientEmail={} name=\"{}\" exercises={}",
+                saved.getId(), trainerId, trainer.getEmail(), clientId, client.getEmail(),
+                dto.getName(), saved.getExercises().size());
         return toDto(saved);
     }
 
@@ -64,8 +66,8 @@ public class WorkoutService {
         WorkoutProgram program = programRepository.findById(programId)
                 .orElseThrow(() -> new ResourceNotFoundException("WorkoutProgram", programId));
 
-        // проверяем авторство
         if (!program.getTrainer().getId().equals(trainerId)) {
+            log.warn("[WARN] event=PROGRAM_UPDATE_REJECTED programId={} trainerId={} reason=\"не автор программы\"", programId, trainerId);
             throw new BusinessException("Вы не являетесь автором этой программы");
         }
 
@@ -77,7 +79,8 @@ public class WorkoutService {
             dto.getExercises().forEach(e -> program.getExercises().add(toExerciseEntity(e, program)));
         }
         WorkoutProgram saved = programRepository.save(program);
-        log.info("Workout program {} updated by trainer {}", programId, trainerId);
+        log.info("[TRAINER] event=PROGRAM_UPDATED programId={} trainerId={} clientId={} name=\"{}\" exercises={}",
+                programId, trainerId, program.getClient().getId(), dto.getName(), saved.getExercises().size());
         return toDto(saved);
     }
 
