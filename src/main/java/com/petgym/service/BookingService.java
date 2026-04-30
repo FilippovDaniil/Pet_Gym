@@ -43,9 +43,9 @@ public class BookingService {
         if (!start.isAfter(now)) {
             throw new BusinessException("Дата бронирования должна быть в будущем");
         }
-        // Бизнес-правило 2: нельзя бронировать более чем за 7 дней
-        if (start.isAfter(now.plusDays(7))) {
-            throw new BusinessException("Бронирование возможно не более чем за 7 дней вперёд");
+        // Бизнес-правило 2: нельзя бронировать более чем за 30 дней
+        if (start.isAfter(now.plusDays(30))) {
+            throw new BusinessException("Бронирование возможно не более чем за 30 дней вперёд");
         }
 
         // Бизнес-правило 3: у клиента должен быть активный абонемент на день тренировки
@@ -164,7 +164,8 @@ public class BookingService {
     @Transactional(readOnly = true)
     public List<LocalDateTime> getFreeSlots(Long trainerId, LocalDate date) {
         // получаем все занятые бронирования за рабочий день тренера (9:00–18:00)
-        List<TrainingBooking> bookings = bookingRepository.findConflictingBookings(
+        // используем метод без PESSIMISTIC_WRITE, т.к. read-only транзакция не допускает SELECT FOR UPDATE
+        List<TrainingBooking> bookings = bookingRepository.findOccupiedBookings(
                 trainerId,
                 date.atTime(9, 0),
                 date.atTime(18, 0));

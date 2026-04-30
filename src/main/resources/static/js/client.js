@@ -78,8 +78,16 @@ function selectTrainer(id, name) {
     document.getElementById('selected-trainer-name').textContent = name;
     const panel = document.getElementById('booking-panel');
     panel.classList.remove('d-none');
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('slot-date').value = today;
+    // Локальная дата браузера (не UTC, чтобы не смещало на сутки в других часовых поясах)
+    const now = new Date();
+    const localDate = d => d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+    const maxDate = new Date(now); maxDate.setDate(now.getDate() + 30);
+    const input = document.getElementById('slot-date');
+    input.min = localDate(now);
+    input.max = localDate(maxDate);
+    input.value = localDate(now);
     document.getElementById('slots-container').innerHTML = '';
 }
 
@@ -143,25 +151,84 @@ async function loadProgram() {
         const program = await get('/client/workout-program');
         const el = document.getElementById('program-content');
         if (!program || !program.id) {
-            el.innerHTML = '<p class="text-muted">Программа тренировок ещё не назначена тренером</p>';
+            el.innerHTML = `
+                <div class="text-center py-5 text-muted">
+                    <div style="font-size:3rem">📋</div>
+                    <p class="mt-2">Программа тренировок ещё не назначена тренером</p>
+                </div>`;
             return;
         }
+
         const days = {};
-        (program.exercises || []).forEach(ex => {
-            if (!days[ex.dayNumber]) days[ex.dayNumber] = [];
-            days[ex.dayNumber].push(ex);
-        });
-        el.innerHTML = `<h5>${program.name}</h5><p class="text-muted small">Тренер: ${program.trainerName}</p>` +
-            Object.entries(days).map(([day, exs]) => `
-                <div class="card mb-3">
-                    <div class="card-header fw-bold">День ${day}</div>
-                    <div class="card-body p-0">
-                        <table class="table table-sm mb-0">
-                            <thead><tr><th>Упражнение</th><th>Подходы</th><th>Повторения</th><th>Вес</th></tr></thead>
-                            <tbody>${exs.map(e => `<tr><td>${e.exerciseName}</td><td>${e.sets}</td><td>${e.reps}</td><td>${e.weight || '—'}</td></tr>`).join('')}</tbody>
-                        </table>
+        (program.exercises || [])
+            .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
+            .forEach(ex => {
+                if (!days[ex.dayNumber]) days[ex.dayNumber] = [];
+                days[ex.dayNumber].push(ex);
+            });
+
+        const totalDays = Object.keys(days).length;
+        const totalExercises = program.exercises?.length || 0;
+        const totalSets = program.exercises?.reduce((sum, ex) => sum + (ex.sets || 0), 0) || 0;
+
+        el.innerHTML = `
+            <div class="mb-3">
+                <h5 class="mb-1">${program.name}</h5>
+                <span class="text-muted small">Тренер: ${program.trainerName}</span>
+            </div>
+            <div class="row g-2 mb-4">
+                <div class="col-auto">
+                    <div class="border rounded px-3 py-2 text-center">
+                        <div class="fw-bold fs-5">${totalDays}</div>
+                        <div class="text-muted small">дней</div>
                     </div>
-                </div>`).join('');
+                </div>
+                <div class="col-auto">
+                    <div class="border rounded px-3 py-2 text-center">
+                        <div class="fw-bold fs-5">${totalExercises}</div>
+                        <div class="text-muted small">упражнений</div>
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <div class="border rounded px-3 py-2 text-center">
+                        <div class="fw-bold fs-5">${totalSets}</div>
+                        <div class="text-muted small">подходов</div>
+                    </div>
+                </div>
+            </div>` +
+            Object.entries(days)
+                .sort(([a], [b]) => Number(a) - Number(b))
+                .map(([day, exs]) => {
+                    const daySets = exs.reduce((sum, ex) => sum + (ex.sets || 0), 0);
+                    return `
+                    <div class="card mb-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">День ${day}</span>
+                            <span class="text-muted small">${exs.length} упр. · ${daySets} подходов</span>
+                        </div>
+                        <div class="card-body p-0">
+                            <table class="table table-sm mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Упражнение</th>
+                                        <th class="text-center">Подходы</th>
+                                        <th class="text-center">Повторения</th>
+                                        <th class="text-center">Вес</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${exs.map((e, i) => `
+                                    <tr>
+                                        <td><span class="text-muted small me-1">${i + 1}.</span>${e.exerciseName}</td>
+                                        <td class="text-center"><span class="badge bg-primary">${e.sets}</span></td>
+                                        <td class="text-center"><span class="badge bg-info text-dark">× ${e.reps}</span></td>
+                                        <td class="text-center">${e.weight ? `<span class="badge bg-secondary">${e.weight}</span>` : '<span class="text-muted">—</span>'}</td>
+                                    </tr>`).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>`;
+                }).join('');
     } catch (e) {
         if (e.message.includes('204') || e.message === '') {
             document.getElementById('program-content').innerHTML = '<p class="text-muted">Программа не назначена</p>';

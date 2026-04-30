@@ -44,6 +44,12 @@ public interface TrainingBookingRepository extends JpaRepository<TrainingBooking
     // найти бронирования по статусу, созданные раньше указанного момента — используется планировщиком
     List<TrainingBooking> findByStatusAndCreatedAtBefore(BookingStatus status, LocalDateTime before);
 
+    // Без блокировки — только для чтения занятых слотов (используется в getFreeSlots)
+    @Query("SELECT b FROM TrainingBooking b WHERE b.trainer.id = :trainerId AND b.status NOT IN ('CANCELLED_BY_CLIENT','CANCELLED_BY_TRAINER') AND b.startDateTime < :endTime AND b.endDateTime > :startTime")
+    List<TrainingBooking> findOccupiedBookings(@Param("trainerId") Long trainerId,
+                                               @Param("startTime") LocalDateTime startTime,
+                                               @Param("endTime") LocalDateTime endTime);
+
     // DISTINCT — уникальные клиенты (чтобы не дублировать, если бронировали несколько раз)
     // возвращает объекты User, а не TrainingBooking
     @Query("SELECT DISTINCT b.client FROM TrainingBooking b WHERE b.trainer.id = :trainerId")

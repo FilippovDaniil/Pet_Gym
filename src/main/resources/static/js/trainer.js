@@ -145,11 +145,11 @@ function addExerciseRow(ex) {
     const div = document.createElement('div');
     div.className = 'row g-2 mb-2 exercise-row';
     div.innerHTML = `
-        <div class="col-3"><input class="form-control form-control-sm" placeholder="Упражнение" value="${ex?.exerciseName || ''}" data-field="exerciseName" required></div>
-        <div class="col-1"><input class="form-control form-control-sm" type="number" placeholder="Под." value="${ex?.sets || 3}" min="1" data-field="sets"></div>
-        <div class="col-1"><input class="form-control form-control-sm" placeholder="Пов." value="${ex?.reps || '10'}" data-field="reps"></div>
-        <div class="col-2"><input class="form-control form-control-sm" placeholder="Вес" value="${ex?.weight || ''}" data-field="weight"></div>
-        <div class="col-1"><input class="form-control form-control-sm" type="number" placeholder="День" value="${day}" min="1" data-field="dayNumber"></div>
+        <div class="col-3"><input class="form-control form-control-sm" placeholder="Напр. Жим лёжа" value="${ex?.exerciseName || ''}" data-field="exerciseName" required></div>
+        <div class="col-1"><input class="form-control form-control-sm" type="number" placeholder="Подходы" value="${ex?.sets || 3}" min="1" data-field="sets"></div>
+        <div class="col-1"><input class="form-control form-control-sm" placeholder="Напр. 10 или 8-12" value="${ex?.reps || '10'}" data-field="reps"></div>
+        <div class="col-2"><input class="form-control form-control-sm" placeholder="Напр. 60 кг или без веса" value="${ex?.weight || ''}" data-field="weight"></div>
+        <div class="col-1"><input class="form-control form-control-sm" type="number" placeholder="№ дня" value="${day}" min="1" data-field="dayNumber"></div>
         <div class="col-auto"><button class="btn btn-sm btn-outline-danger" onclick="this.closest('.exercise-row').remove()">✕</button></div>`;
     document.getElementById('exercises-list').appendChild(div);
 }
