@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <!-- Loki-аппендер активен только в Docker (профиль "docker") -->
+    <springProfile name="docker">
+        <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+            <http>
+                <url>http://loki:3100/loki/api/v1/push</url>
+                <connectionTimeoutMs>5000</connectionTimeoutMs>
+                <requestTimeoutMs>5000</requestTimeoutMs>
+            </http>
+            <format>
+                <label>
+                    <pattern>app=petgym,level=%level,logger=%logger{20}</pattern>
+                </label>
+                <message>
+                    <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+                </message>
+                <sortByTime>true</sortByTime>
+            </format>
+            <!-- Если Loki недоступен — просто теряем логи, не роняем приложение -->
+            <dropRatioOnError>0</dropRatioOnError>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="LOKI"/>
+        </root>
+
+        <logger name="com.petgym" level="DEBUG" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="LOKI"/>
+        </logger>
+    </springProfile>
+
+    <!-- Локальный запуск — только консоль -->
+    <springProfile name="!docker">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+
+        <logger name="com.petgym" level="DEBUG" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+    </springProfile>
+</configuration>

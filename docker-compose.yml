@@ -2,6 +2,41 @@ version: '3.9'
 
 services:
 
+  # ─── Loki (сбор логов) ───────────────────────────────────────────────────────
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: petgym-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./docker/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki-config.yml
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─── Grafana (просмотр логов) ─────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: petgym-grafana
+    restart: unless-stopped
+    depends_on:
+      loki:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: false
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+
   # ─── PostgreSQL ──────────────────────────────────────────────────────────────
   db:
     image: postgres:17-alpine
@@ -31,6 +66,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      loki:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/petgym
       SPRING_DATASOURCE_USERNAME: postgres
@@ -39,6 +76,7 @@ services:
       JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
       JWT_EXPIRATION: 86400000
       LOGGING_LEVEL_COM_PETGYM: INFO
+      SPRING_PROFILES_ACTIVE: docker
     ports:
       - "8091:8091"
     healthcheck:
@@ -50,4 +88,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  loki_data:
+    driver: local
+  grafana_data:
     driver: local
