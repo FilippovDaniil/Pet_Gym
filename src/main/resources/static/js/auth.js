@@ -81,6 +81,19 @@ async function del(path) {
     if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || res.statusText); }
 }
 
+function toggleSidebar() {
+    document.getElementById('sidebar')?.classList.toggle('open');
+    document.getElementById('sidebar-overlay')?.classList.toggle('open');
+}
+function closeSidebar() {
+    document.getElementById('sidebar')?.classList.remove('open');
+    document.getElementById('sidebar-overlay')?.classList.remove('open');
+}
+
+document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+    link.addEventListener('click', closeSidebar);
+});
+
 function fmtDt(dt) {
     if (!dt) return '—';
     const d = new Date(dt);

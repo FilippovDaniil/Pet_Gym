@@ -8,8 +8,13 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+<div class="mobile-topbar">
+    <button class="burger-btn" onclick="toggleSidebar()">&#9776;</button>
+    <span class="brand-mobile">🏋️ FitClub</span>
+</div>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 <div class="d-flex">
-    <nav class="sidebar d-flex flex-column p-0" style="width:220px;min-width:220px">
+    <nav class="sidebar d-flex flex-column p-0" id="sidebar">
         <a href="#" class="brand">🏋️ FitClub</a>
         <ul class="nav flex-column flex-grow-1">
             <li><a class="nav-link active" href="#" onclick="showTab('tab-clients')">👥 Клиенты</a></li>

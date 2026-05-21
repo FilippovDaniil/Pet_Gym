@@ -24,7 +24,12 @@
       "Bash(wait)",
       "Bash(curl -s http://localhost:8091/api/auth/login -X POST -H 'Content-Type: application/json' -d '{\"email\":\"admin@fit.com\",\"password\":\"admin\"}')",
       "Bash(curl -s http://localhost:8091/api/auth/login -X POST -H 'Content-Type: application/json' -d '{\"email\":\"client1@fit.com\",\"password\":\"client1\"}')",
-      "Bash(pkill -f \"PetGymApplication\\\\|bootRun\")"
+      "Bash(pkill -f \"PetGymApplication\\\\|bootRun\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\MaxxPC\\\\IdeaProjects\\\\Pet_Gym\" -Force)",
+      "Bash(Select-Object Name)",
+      "Bash(find C:\\\\Users\\\\MaxxPC\\\\IdeaProjects\\\\Pet_Gym *)",
+      "Bash(find C:\\\\\\\\Users\\\\\\\\MaxxPC\\\\\\\\IdeaProjects\\\\\\\\Pet_Gym\\\\\\\\src\\\\\\\\main\\\\\\\\resources\\\\\\\\static -type f)",
+      "Bash(python3 *)"
     ]
   }
 }
