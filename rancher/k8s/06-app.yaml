@@ -1,0 +1,185 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# 06-app.yaml — Spring Boot приложение Pet Gym
+#
+# Зависимости (стартуют раньше):
+#   02-postgres.yaml → postgres-service:5432 (БД, Flyway миграции)
+#   03-loki.yaml     → loki:3100 (агрегация логов, только при profile=docker)
+#
+# Файл содержит 3 ресурса:
+#   1. ConfigMap pet-gym-config — несекретные переменные окружения Spring Boot
+#   2. Deployment pet-gym-app — контейнер приложения с initContainer
+#   3. Service pet-gym-service (NodePort 30091) — доступ из браузера
+#
+# Образ: pet-gym:1.0.0 (собрать: .\rancher\build-and-load.ps1)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ──── ConfigMap: переменные окружения приложения ──────────────────────────────
+# ConfigMap содержит НЕСЕКРЕТНЫЕ данные.
+# Секретные данные (пароль БД) передаются через Secret (01-secrets.yaml).
+# Переменные переопределяют значения из application.properties.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pet-gym-config    # На этот ConfigMap ссылается Deployment через envFrom
+  namespace: pet-gym
+data:
+  # URL базы данных через K8s DNS.
+  # В application.properties: jdbc:postgresql://localhost:5432/petgym (для локальной разработки)
+  # В K8s: localhost недоступен — нужно DNS-имя K8s Service из 02-postgres.yaml
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-service:5432/petgym"
+
+  # Имя пользователя PostgreSQL (то же что в application.properties)
+  SPRING_DATASOURCE_USERNAME: "postgres"
+
+  # Активный профиль Spring Boot.
+  # "docker" активирует Loki appender в logback-spring.xml:
+  #   <springProfile name="docker"> → <appender name="LOKI">
+  # Без этого логи идут только в консоль, не в Loki.
+  SPRING_PROFILES_ACTIVE: "docker"
+
+  # Порт сервера (совпадает с application.properties: server.port=8091)
+  SERVER_PORT: "8091"
+
+  # Отключить проверку здоровья почтового сервера.
+  # Если в зависимостях есть spring-boot-starter-mail → Spring создаёт MailHealthIndicator.
+  # Без рабочего SMTP-сервера MailHealthIndicator = DOWN → /actuator/health = 503.
+  # 503 → readinessProbe fail → бесконечный перезапуск Pod-а.
+  # Профилактически отключаем на случай будущего добавления mail зависимости.
+  MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
+
+  # Показывать детали каждого HealthIndicator в /actuator/health.
+  # Удобно при диагностике: видно какой именно компонент DOWN.
+  MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "always"
+
+  # JVM heap — ограничиваем для экономии памяти на локальном кластере.
+  # -Xms256m: начальный размер heap (быстрее старт)
+  # -Xmx512m: максимальный размер heap (должен совпадать с resources.limits.memory)
+  JAVA_OPTS: "-Xms256m -Xmx512m"
+
+---
+# ──── Deployment Pet Gym Application ─────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pet-gym-app
+  namespace: pet-gym
+  labels:
+    app: pet-gym-app    # Метка для kubectl get deployment -l app=pet-gym-app
+spec:
+  replicas: 1    # Один экземпляр (для учебного проекта достаточно)
+  selector:
+    matchLabels:
+      app: pet-gym-app    # K8s управляет Pod-ами с этой меткой
+  template:
+    metadata:
+      labels:
+        app: pet-gym-app    # Метка Pod-а (должна совпадать с selector.matchLabels)
+    spec:
+      # ── initContainers ──────────────────────────────────────────────────────
+      # initContainers запускаются СТРОГО ДО основного контейнера.
+      # Пока они не завершатся успешно (exit code 0) — основной контейнер не стартует.
+      #
+      # Зачем: Spring Boot при старте запускает Flyway (SQL миграции).
+      # Flyway немедленно пытается подключиться к БД.
+      # Если PostgreSQL ещё не готов → Connection refused → CrashLoopBackOff.
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36    # Минимальный образ с утилитами (nc, sh, sleep)
+          command:
+            - sh
+            - -c
+            # nc -z (zero-I/O mode): проверяет открытость TCP-порта БЕЗ отправки данных.
+            # Возвращает 0 (успех) когда postgres-service:5432 принимает соединения.
+            # until ... ; do sleep 2; done: повторяем каждые 2 секунды до успеха.
+            - |
+              echo "Ожидание PostgreSQL на postgres-service:5432..."
+              until nc -z postgres-service 5432; do
+                echo "PostgreSQL ещё не готов, повтор через 2 секунды..."
+                sleep 2
+              done
+              echo "PostgreSQL готов! Запускаем Spring Boot..."
+
+      # ── Main Container ───────────────────────────────────────────────────────
+      containers:
+        - name: pet-gym-app
+          # Образ собирается скриптом .\rancher\build-and-load.ps1
+          # Имя и тег должны совпадать с теми что указаны в скрипте
+          image: pet-gym:1.0.0
+
+          # КРИТИЧНО для Rancher Desktop: НИКОГДА не менять на Always или IfNotPresent!
+          # k3s ищет образ в Docker daemon ВНУТРИ Linux VM.
+          # build-and-load.ps1 загружает образ именно туда (через rdctl shell).
+          # Если Always → k3s попытается скачать из Docker Hub → ImagePullBackOff.
+          imagePullPolicy: Never
+
+          ports:
+            - containerPort: 8091    # Порт Spring Boot (server.port=8091)
+
+          # Все несекретные переменные — из ConfigMap pet-gym-config
+          # envFrom делает переменные из ConfigMap видимыми в контейнере как env vars
+          envFrom:
+            - configMapRef:
+                name: pet-gym-config
+
+          # Секретные переменные — напрямую из Secret (не через envFrom для безопасности)
+          env:
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pet-gym-secrets      # Secret из 01-secrets.yaml
+                  key: postgres-password      # Ключ в Secret = "1234"
+
+          # ── readinessProbe ────────────────────────────────────────────────────
+          # readinessProbe: "готов ли Pod принимать трафик?"
+          # Пока probe не вернёт 200 — Service НЕ роутит запросы на этот Pod.
+          # Spring Boot с Flyway + JPA + Security стартует 40-60 секунд.
+          # /swagger-ui.html — публичный URL (Spring Security разрешает без JWT).
+          readinessProbe:
+            httpGet:
+              path: /swagger-ui.html    # Публичный endpoint (не требует авторизации)
+              port: 8091
+            initialDelaySeconds: 40    # Первая проверка через 40 сек после старта контейнера
+            periodSeconds: 10          # Проверять каждые 10 сек
+            failureThreshold: 6        # 6 × 10 = ещё 60 сек запаса = 100 сек суммарно
+
+          # ── livenessProbe ─────────────────────────────────────────────────────
+          # livenessProbe: "жив ли Pod?"
+          # Если нет → K8s перезапускает контейнер (restart).
+          # initialDelaySeconds ОБЯЗАТЕЛЬНО больше чем у readiness!
+          # Иначе liveness перезапустит Pod пока он ещё загружается.
+          livenessProbe:
+            httpGet:
+              path: /swagger-ui.html
+              port: 8091
+            initialDelaySeconds: 90    # > readiness.initialDelaySeconds (40) — с запасом
+            periodSeconds: 15          # Проверять каждые 15 сек (реже чем readiness)
+            failureThreshold: 3        # 3 неудачи подряд = перезапуск
+
+          # ── Resources ─────────────────────────────────────────────────────────
+          # requests: минимум для планирования (kube-scheduler учитывает)
+          # limits: максимум (контейнер убивается если превышает limits.memory)
+          resources:
+            requests:
+              memory: "256Mi"    # Минимум для Spring Boot JVM с -Xms256m
+              cpu: "200m"        # 0.2 ядра — Spring Boot в idle почти не грузит CPU
+            limits:
+              memory: "512Mi"    # Максимум совпадает с JAVA_OPTS -Xmx512m
+              cpu: "500m"        # 0.5 ядра — разрешаем burst при нагрузке
+
+---
+# ──── Service Pet Gym (NodePort) ──────────────────────────────────────────────
+# NodePort: приложение доступно снаружи кластера через http://localhost:30091
+# Также используется Prometheus как scrape target: pet-gym-service:8091
+apiVersion: v1
+kind: Service
+metadata:
+  name: pet-gym-service    # ← prometheus.yml ссылается на это имя: targets: ['pet-gym-service:8091']
+  namespace: pet-gym
+spec:
+  selector:
+    app: pet-gym-app    # Направлять трафик на Pod-ы с этой меткой
+  ports:
+    - port: 8091          # Внутренний порт Service (Prometheus использует этот)
+      targetPort: 8091    # Порт Spring Boot в контейнере
+      nodePort: 30091     # http://localhost:30091 — доступ из браузера
+  type: NodePort

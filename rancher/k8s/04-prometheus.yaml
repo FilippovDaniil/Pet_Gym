@@ -1,0 +1,133 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# 04-prometheus.yaml — Prometheus: система сбора и хранения метрик
+#
+# Архитектура метрик:
+#   Prometheus → (pull) → /actuator/prometheus (Spring Boot Micrometer)
+#   Grafana → (query) → Prometheus:9090
+#
+# Примечание по текущему проекту:
+#   build.gradle не содержит micrometer-registry-prometheus.
+#   Endpoint /actuator/prometheus недоступен.
+#   Prometheus будет показывать target "pet-gym-app" как DOWN — это нормально,
+#   стек работает. Для включения метрик добавить в build.gradle:
+#     implementation 'io.micrometer:micrometer-registry-prometheus'
+#     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+#
+# Файл содержит 3 ресурса:
+#   1. ConfigMap — правила scrape (что и куда собирать)
+#   2. PersistentVolumeClaim — хранилище метрик
+#   3. Deployment + Service (NodePort 30900)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ──── ConfigMap: конфигурация Prometheus ──────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: pet-gym
+data:
+  # Файл монтируется в /etc/prometheus/prometheus.yml
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s       # Собирать метрики каждые 15 секунд (стандарт)
+      evaluation_interval: 15s   # Оценивать правила алертинга каждые 15 секунд
+
+    scrape_configs:
+      # Job 1: Prometheus собирает свои собственные метрики
+      # Всегда включай — позволяет мониторить сам Prometheus
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']    # Prometheus слушает на 9090
+
+      # Job 2: Метрики приложения Pet Gym через Spring Boot Actuator + Micrometer
+      # Требует: micrometer-registry-prometheus + spring-boot-starter-actuator в build.gradle
+      # Если endpoint недоступен — Prometheus покажет target "down", но продолжит работать
+      - job_name: 'pet-gym-app'
+        metrics_path: '/actuator/prometheus'     # Стандартный путь Micrometer Prometheus endpoint
+        static_configs:
+          - targets: ['pet-gym-service:8091']    # DNS-имя K8s Service приложения (из 06-app.yaml)
+
+---
+# ──── PersistentVolumeClaim для Prometheus ────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-pvc
+  namespace: pet-gym
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi    # 1 ГБ хватает на 7 дней метрик при 15-секундном интервале
+
+---
+# ──── Deployment Prometheus ───────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: pet-gym
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      # Prometheus запускается от nobody (UID 65534) — стандарт образа prom/prometheus
+      # fsGroup: данные в PVC будут принадлежать группе 65534 (права на запись)
+      securityContext:
+        runAsUser: 65534     # nobody — непривилегированный пользователь
+        fsGroup: 65534       # fsGroup: Pod получает доступ к PVC через эту группу
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.51.2    # Стабильная LTS версия
+          args:
+            - '--config.file=/etc/prometheus/prometheus.yml'   # Конфиг из ConfigMap
+            - '--storage.tsdb.path=/prometheus'                # Данные на PVC
+            - '--storage.tsdb.retention.time=7d'               # Хранить метрики 7 дней (потом удалять)
+            - '--web.enable-lifecycle'                         # Позволяет POST /-/reload без рестарта
+          ports:
+            - containerPort: 9090    # HTTP порт веб-интерфейса и API Prometheus
+          volumeMounts:
+            - name: prometheus-config
+              mountPath: /etc/prometheus     # ConfigMap с prometheus.yml
+            - name: prometheus-data
+              mountPath: /prometheus         # PVC для хранения временных рядов
+          readinessProbe:
+            httpGet:
+              path: /-/ready     # Prometheus отдаёт 200 OK когда готов
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+      volumes:
+        - name: prometheus-config
+          configMap:
+            name: prometheus-config   # Конфигурация scrape из ConfigMap
+        - name: prometheus-data
+          persistentVolumeClaim:
+            claimName: prometheus-pvc # Постоянное хранилище метрик
+
+---
+# ──── Service Prometheus (NodePort) ──────────────────────────────────────────
+# NodePort: Prometheus доступен как снаружи (браузер) так и внутри (Grafana)
+# Grafana datasource URL: http://prometheus:9090
+# Браузер: http://localhost:30900
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus    # ← Grafana datasource ссылается на это имя: http://prometheus:9090
+  namespace: pet-gym
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090           # Внутренний порт (Grafana использует этот)
+      targetPort: 9090     # Порт в контейнере Prometheus
+      nodePort: 30903      # Внешний порт: http://localhost:30903
+  type: NodePort

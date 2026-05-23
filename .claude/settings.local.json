@@ -29,7 +29,17 @@
       "Bash(Select-Object Name)",
       "Bash(find C:\\\\Users\\\\MaxxPC\\\\IdeaProjects\\\\Pet_Gym *)",
       "Bash(find C:\\\\\\\\Users\\\\\\\\MaxxPC\\\\\\\\IdeaProjects\\\\\\\\Pet_Gym\\\\\\\\src\\\\\\\\main\\\\\\\\resources\\\\\\\\static -type f)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "PowerShell(kubectl config current-context *)",
+      "PowerShell(rdctl *)",
+      "PowerShell(kubectl cluster-info *)",
+      "PowerShell(Get-Item *)",
+      "PowerShell(rdctl shell -- sh -c \"docker load < /mnt/c/Users/$env:USERNAME/AppData/Local/Temp/pet-gym.tar\" 2>&1)",
+      "PowerShell(kubectl get services *)",
+      "PowerShell(kubectl get pods *)",
+      "PowerShell($response = try { Invoke-WebRequest -Uri \"http://localhost:30091/swagger-ui.html\" -TimeoutSec 5 -UseBasicParsing; $response.StatusCode } catch { \"Error: $\\($_.Exception.Message\\)\" }; $response)",
+      "PowerShell($p = try { \\(Invoke-WebRequest -Uri \"http://localhost:30903\" -TimeoutSec 3 -UseBasicParsing\\).StatusCode } catch { \"Error\" }; $g = try { \\(Invoke-WebRequest -Uri \"http://localhost:30304/api/health\" -TimeoutSec 3 -UseBasicParsing\\).StatusCode } catch { \"Error\" }; \"Prometheus: $p | Grafana: $g\")",
+      "PowerShell(kubectl logs *)"
     ]
   }
 }

@@ -18,10 +18,11 @@
 9. [Фронтенд](#9-фронтенд)
 10. [Запуск проекта](#10-запуск-проекта)
 11. [Docker и Docker Compose](#11-docker-и-docker-compose)
-12. [Логирование — Loki + Grafana](#12-логирование--loki--grafana)
-13. [Тестирование через Postman](#13-тестирование-через-postman)
-14. [Тестовые аккаунты](#14-тестовые-аккаунты)
-15. [Частые ошибки и их решения](#15-частые-ошибки-и-их-решения)
+12. [Kubernetes — запуск в Rancher Desktop](#12-kubernetes--запуск-в-rancher-desktop)
+13. [Логирование — Loki + Grafana](#13-логирование--loki--grafana)
+14. [Тестирование через Postman](#14-тестирование-через-postman)
+15. [Тестовые аккаунты](#15-тестовые-аккаунты)
+16. [Частые ошибки и их решения](#16-частые-ошибки-и-их-решения)
 
 ---
 
@@ -776,7 +777,149 @@ Stage 2: eclipse-temurin:21-jre-alpine
 
 ---
 
-## 12. Логирование — Loki + Grafana
+## 12. Kubernetes — запуск в Rancher Desktop
+
+> Полный K8s стек: PostgreSQL + Loki + Prometheus + Grafana + Spring Boot + K8s Dashboard.
+> Все файлы инфраструктуры находятся в `rancher/`.
+
+### Требования
+
+- **Rancher Desktop** установлен и запущен ([rancherdesktop.io](https://rancherdesktop.io))
+- При установке выбрать: Container Runtime = `dockerd (Moby)`
+- Проверить контекст: `kubectl config current-context` → должно быть `rancher-desktop`
+
+### Почему нельзя просто `docker build`
+
+```
+Windows Host:
+  docker build → образ в Docker Desktop daemon (Windows)
+  
+  Rancher Desktop VM (Linux):
+    k3s использует Docker daemon ВНУТРИ VM
+    → два разных хранилища образов!
+    → imagePullPolicy: Never + образ только в Windows = ErrImageNeverPull
+```
+
+Скрипт `rancher/build-and-load.ps1` решает это: собирает образ → экспортирует в `.tar` → загружает в VM через `rdctl shell`.
+
+### Запуск (пошагово)
+
+```powershell
+# 1. Убедиться что Rancher Desktop запущен
+rdctl version                          # должно ответить без ошибки
+kubectl get nodes                      # должен быть узел Ready
+
+# 2. Собрать образ и загрузить в VM
+.\rancher\build-and-load.ps1
+
+# 3. Развернуть весь стек
+kubectl apply -f rancher/k8s/
+
+# 4. Следить за запуском
+kubectl get pods -n pet-gym -w         # ждём: все pods Running 1/1
+```
+
+Spring Boot стартует ~30-45 секунд. initContainer `wait-for-postgres` ждёт готовности БД перед запуском приложения.
+
+### Адреса сервисов
+
+| Сервис | URL | Логин |
+|--------|-----|-------|
+| Приложение | http://localhost:30091 | JWT токен |
+| Swagger UI | http://localhost:30091/swagger-ui.html | без авторизации |
+| Grafana | http://localhost:30304 | admin / admin |
+| Prometheus | http://localhost:30903 | без авторизации |
+| K8s Dashboard | https://localhost:30443 | Токен (см. ниже) |
+
+### Обновление кода
+
+```powershell
+# Пересобрать + загрузить + перезапустить Pod:
+.\rancher\build-and-load.ps1 -Restart
+```
+
+### Структура манифестов
+
+```
+rancher/
+├── build-and-load.ps1       ← скрипт сборки образа
+└── k8s/
+    ├── 00-namespace.yaml    ← namespace pet-gym (применяется первым)
+    ├── 01-secrets.yaml      ← пароль PostgreSQL (в base64)
+    ├── 02-postgres.yaml     ← PostgreSQL: PVC(1Gi) + Deployment + Service(ClusterIP)
+    ├── 03-loki.yaml         ← Loki: ConfigMap + PVC(2Gi) + Deployment + Service(ClusterIP)
+    ├── 04-prometheus.yaml   ← Prometheus: ConfigMap + PVC(1Gi) + Deployment + Service(NodePort 30903)
+    ├── 05-grafana.yaml      ← Grafana: 3×ConfigMap + PVC(256Mi) + Deployment + Service(NodePort 30304)
+    ├── 06-app.yaml          ← Spring Boot: ConfigMap + Deployment + Service(NodePort 30091)
+    └── 07-dashboard.yaml    ← K8s Dashboard (namespace kubernetes-dashboard, NodePort 30443)
+```
+
+Каждый ресурс подробно прокомментирован внутри файлов.
+
+### Как работает логирование в K8s
+
+```
+Spring Boot (профиль docker)
+  └── loki4j appender
+        └── HTTP POST http://loki:3100/loki/api/v1/push
+              └── Loki (K8s Service ClusterIP)
+                    └── Grafana (запросы LogQL)
+                          └── Дашборд "Pet Gym Overview"
+```
+
+`logback-spring.xml` активирует Loki appender только при `SPRING_PROFILES_ACTIVE=docker`.
+ConfigMap `pet-gym-config` выставляет этот профиль автоматически.
+
+### Получить токен для K8s Dashboard
+
+```powershell
+$b64 = kubectl -n kubernetes-dashboard get secret admin-user-token -o jsonpath='{.data.token}'
+[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($b64))
+```
+
+Открыть https://localhost:30443 → выбрать "Token" → вставить токен.
+Предупреждение о TLS нажать "Дополнительно" → "Перейти".
+
+### Полезные команды
+
+```powershell
+# Статус всего стека
+kubectl get all -n pet-gym
+
+# Логи приложения (live)
+kubectl logs -n pet-gym deployment/pet-gym-app -f
+
+# Логи упавшего Pod-а
+kubectl logs -n pet-gym deployment/pet-gym-app --previous
+
+# Детали Pod-а (события, probe failures)
+kubectl describe pod -n pet-gym <pod-name>
+
+# Войти внутрь контейнера
+kubectl exec -it -n pet-gym deployment/pet-gym-app -- /bin/sh
+
+# Прямой доступ без NodePort
+kubectl port-forward -n pet-gym service/pet-gym-service 8091:8091
+
+# Удалить весь стек (данные в PVC сохранятся)
+kubectl delete namespace pet-gym
+
+# Пересоздать с нуля
+kubectl apply -f rancher/k8s/
+```
+
+### Диагностика типичных проблем в K8s
+
+| Симптом | Причина | Решение |
+|---------|---------|---------|
+| `ErrImageNeverPull` | Образ в Docker Desktop, не в VM | `.\rancher\build-and-load.ps1` |
+| `CrashLoopBackOff` приложения | PostgreSQL не готов | initContainer ждёт — просто подождать |
+| readinessProbe fails | Spring Boot ещё загружается | Подождать 40-90 сек (настроено в манифесте) |
+| Логи не в Grafana | `SPRING_PROFILES_ACTIVE != docker` | Проверить ConfigMap: `kubectl get cm pet-gym-config -n pet-gym -o yaml` |
+
+---
+
+## 13. Логирование — Loki + Grafana
 
 ### Как устроен стек
 

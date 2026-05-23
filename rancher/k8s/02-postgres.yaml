@@ -1,0 +1,103 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# 02-postgres.yaml — PostgreSQL: постоянное хранилище, Deployment и Service
+#
+# Этот файл содержит 3 ресурса (разделены ---):
+#   1. PersistentVolumeClaim — запрос на дисковое пространство
+#   2. Deployment — описание контейнера PostgreSQL
+#   3. Service (ClusterIP) — внутренний DNS-адрес для Spring Boot
+#
+# Spring Boot подключается к БД через K8s DNS:
+#   SPRING_DATASOURCE_URL = jdbc:postgresql://postgres-service:5432/petgym
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ──── PersistentVolumeClaim ───────────────────────────────────────────────────
+# PVC = запрос на выделение дискового пространства у кластера.
+# K8s автоматически создаёт PersistentVolume (реальный диск) под этот запрос.
+# Данные переживают перезапуски Pod-а — это главное отличие от emptyDir.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc     # Имя PVC — на него ссылается volumes[].persistentVolumeClaim.claimName
+  namespace: pet-gym
+spec:
+  accessModes:
+    - ReadWriteOnce      # RWO: один Pod может читать И писать одновременно
+                         # (стандарт для баз данных на одном узле)
+  resources:
+    requests:
+      storage: 1Gi       # 1 ГБ хватает для учебного проекта с ~тысячами записей
+
+---
+# ──── Deployment PostgreSQL ───────────────────────────────────────────────────
+# Deployment = K8s гарантирует что N реплик Pod-а всегда запущены.
+# Если Pod упадёт — K8s автоматически создаст новый.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres           # Имя Deployment (для kubectl rollout, kubectl describe)
+  namespace: pet-gym
+spec:
+  replicas: 1              # Один экземпляр PostgreSQL
+                           # (несколько реплик без кластеризации = конфликты данных!)
+  selector:
+    matchLabels:
+      app: postgres        # K8s управляет Pod-ами с ЭТОЙ меткой через этот Deployment
+  template:                # Шаблон создаваемых Pod-ов
+    metadata:
+      labels:
+        app: postgres      # Метка Pod-а — должна совпадать с selector.matchLabels
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine   # Alpine = минимальный образ (~80MB vs ~400MB полный)
+          env:
+            - name: POSTGRES_DB
+              value: "petgym"         # Создать БД "petgym" при первом запуске
+                                      # Flyway (Spring Boot) создаст таблицы сам через миграции
+            - name: POSTGRES_USER
+              value: "postgres"       # Суперпользователь PostgreSQL
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:         # Пароль берём из Secret, не пишем открытым текстом!
+                  name: pet-gym-secrets
+                  key: postgres-password   # Ключ в Secret = "1234"
+          ports:
+            - containerPort: 5432    # Стандартный порт PostgreSQL
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data   # Стандартная директория данных PostgreSQL
+                                                    # Монтируем PVC сюда — данные сохранятся
+          # readinessProbe: K8s спрашивает "готова ли БД принимать соединения?"
+          # Пока probe не пройдёт — Service НЕ направляет трафик на этот Pod.
+          # initContainer в app Deployment ждёт именно готовности Service!
+          readinessProbe:
+            exec:
+              # pg_isready: встроенная утилита PostgreSQL — проверяет готовность сервера
+              command: ["pg_isready", "-U", "postgres", "-d", "petgym"]
+            initialDelaySeconds: 10  # Первая проверка через 10 сек (PostgreSQL стартует быстро)
+            periodSeconds: 5         # Проверять каждые 5 сек
+            failureThreshold: 6      # 6 × 5 = 30 сек максимального ожидания
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-pvc   # Привязываем PVC к этому Pod-у
+
+---
+# ──── Service PostgreSQL (ClusterIP) ─────────────────────────────────────────
+# Service = стабильный внутренний адрес для Pod-а.
+# Pod-ы получают случайные IP при каждом создании — Service решает эту проблему.
+# DNS-имя: postgres-service (в том же namespace) = postgres-service.pet-gym.svc.cluster.local
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service    # ← Это имя прописано в ConfigMap:
+                            #   SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-service:5432/petgym
+  namespace: pet-gym
+spec:
+  selector:
+    app: postgres           # Перенаправлять запросы на Pod-ы с меткой app=postgres
+  ports:
+    - port: 5432            # Порт Service (по которому другие Pod-ы обращаются к БД)
+      targetPort: 5432      # Порт в контейнере PostgreSQL (должен совпадать)
+  type: ClusterIP           # ClusterIP = только внутри кластера
+                            # PostgreSQL не нужен NodePort — снаружи не открываем!

@@ -1,0 +1,235 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# 05-grafana.yaml — Grafana: визуализация логов (Loki) и метрик (Prometheus)
+#
+# Архитектура provisioning:
+#   Grafana при старте читает YAML-файлы из /etc/grafana/provisioning/
+#   Эти файлы монтируются из трёх отдельных ConfigMap.
+#
+# Три ConfigMap нельзя смонтировать в одну директорию напрямую:
+#   второй ConfigMap заменит содержимое первого!
+#   Решение: JSON-дашборды монтируем в ПОДПАПКУ /dashboards/json/
+#
+# Файл содержит 6 ресурсов:
+#   1. ConfigMap grafana-datasources → /etc/grafana/provisioning/datasources/
+#   2. ConfigMap grafana-dashboards-config → /etc/grafana/provisioning/dashboards/
+#   3. ConfigMap grafana-dashboards (JSON) → /etc/grafana/provisioning/dashboards/json/
+#   4. PersistentVolumeClaim — SQLite + плагины Grafana
+#   5. Deployment — контейнер Grafana
+#   6. Service (NodePort 30300)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ──── ConfigMap 1: Datasources ────────────────────────────────────────────────
+# Grafana автоматически подключает источники данных при старте.
+# Файл монтируется в /etc/grafana/provisioning/datasources/datasources.yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: pet-gym
+data:
+  datasources.yml: |
+    apiVersion: 1
+    datasources:
+      # Источник метрик — Prometheus
+      - name: Prometheus
+        type: prometheus
+        access: proxy               # proxy: Grafana-сервер обращается к Prometheus (не браузер клиента)
+        url: http://prometheus:9090  # K8s DNS Service name из 04-prometheus.yaml
+        isDefault: true             # Источник по умолчанию для новых панелей дашборда
+        editable: true              # Можно изменять через UI (не заблокировано provisioning-ом)
+
+      # Источник логов — Loki
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki:3100       # K8s DNS Service name из 03-loki.yaml (строго "loki"!)
+        editable: true
+
+---
+# ──── ConfigMap 2: Dashboard Provider Config ──────────────────────────────────
+# Говорит Grafana ГДЕ искать JSON-файлы дашбордов.
+# Файл монтируется в /etc/grafana/provisioning/dashboards/dashboards.yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-config
+  namespace: pet-gym
+data:
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - name: pet-gym-dashboards
+        orgId: 1
+        folder: "Pet Gym"              # Папка в навигации Grafana (Dashboards → Pet Gym)
+        type: file                     # Тип источника: файловая система
+        disableDeletion: false         # Позволять удалять дашборды через UI
+        updateIntervalSeconds: 10      # Grafana проверяет обновления JSON каждые 10 сек
+        options:
+          # ВАЖНО: путь указывает на ПОДПАПКУ /json, а не на /dashboards напрямую!
+          # Иначе бы файлы из ConfigMap 3 заменили этот dashboards.yml
+          path: /etc/grafana/provisioning/dashboards/json
+
+---
+# ──── ConfigMap 3: JSON-дашборды ─────────────────────────────────────────────
+# Содержит готовые дашборды в формате JSON.
+# Монтируется в ПОДПАПКУ /dashboards/json/ — не затрагивает dashboards.yml выше.
+# Grafana автоматически загружает все *.json файлы из этой директории.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: pet-gym
+data:
+  # Дашборд "Pet Gym Overview" — логи приложения из Loki
+  pet-gym-overview.json: |
+    {
+      "title": "Pet Gym Overview",
+      "uid": "pet-gym-overview",
+      "version": 1,
+      "schemaVersion": 36,
+      "refresh": "30s",
+      "tags": ["pet-gym"],
+      "panels": [
+        {
+          "id": 1,
+          "title": "Логи приложения Pet Gym",
+          "type": "logs",
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "targets": [
+            {
+              "expr": "{app=\"petgym\"}",
+              "refId": "A"
+            }
+          ],
+          "options": {
+            "showTime": true,
+            "showLabels": true,
+            "wrapLogMessage": true,
+            "sortOrder": "Descending"
+          },
+          "gridPos": { "h": 14, "w": 24, "x": 0, "y": 0 }
+        }
+      ],
+      "templating": {
+        "list": [
+          {
+            "name": "DS_LOKI",
+            "type": "datasource",
+            "query": "loki",
+            "hide": 0,
+            "current": { "text": "Loki", "value": "Loki" }
+          }
+        ]
+      }
+    }
+
+---
+# ──── PersistentVolumeClaim для Grafana ──────────────────────────────────────
+# Grafana хранит в PVC: SQLite базу данных, загруженные плагины, сессии.
+# Без PVC при перезапуске Pod-а вручную созданные дашборды и настройки теряются.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-pvc
+  namespace: pet-gym
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 256Mi    # SQLite + плагины занимают мало — 256 МБ с запасом
+
+---
+# ──── Deployment Grafana ──────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: pet-gym
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      # Образ grafana/grafana использует UID 472 (grafana user).
+      # fsGroup 472 даёт Pod-у доступ к PVC через групповые права.
+      securityContext:
+        runAsUser: 472   # Непривилегированный пользователь grafana внутри образа
+        fsGroup: 472     # Файлы PVC принадлежат группе 472 → Grafana может писать
+      containers:
+        - name: grafana
+          image: grafana/grafana:10.4.2    # Стабильная версия (10.4.x LTS)
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD   # Пароль для входа в Grafana UI
+              value: "admin"                      # Логин/пароль: admin/admin
+                                                  # В production заменить на Secret!
+            - name: GF_USERS_ALLOW_SIGN_UP       # Запретить самостоятельную регистрацию
+              value: "false"
+          ports:
+            - containerPort: 3000    # HTTP порт веб-интерфейса Grafana
+          volumeMounts:
+            # ConfigMap 1: datasources.yml → /etc/grafana/provisioning/datasources/
+            - name: grafana-datasources
+              mountPath: /etc/grafana/provisioning/datasources
+
+            # ConfigMap 2: dashboards.yml → /etc/grafana/provisioning/dashboards/
+            - name: grafana-dashboards-config
+              mountPath: /etc/grafana/provisioning/dashboards
+
+            # ConfigMap 3: JSON файлы → /etc/grafana/provisioning/dashboards/json/
+            # ВАЖНО: монтируем в ПОДПАПКУ /json, не в /dashboards!
+            # Иначе K8s заменит всё содержимое /dashboards (включая dashboards.yml выше)
+            - name: grafana-dashboards
+              mountPath: /etc/grafana/provisioning/dashboards/json
+
+            # PVC: SQLite, кеш плагинов, пользовательские настройки
+            - name: grafana-data
+              mountPath: /var/lib/grafana
+
+          readinessProbe:
+            httpGet:
+              path: /api/health    # Grafana REST API — отдаёт 200 OK когда готова
+              port: 3000
+            initialDelaySeconds: 20   # Grafana загружает плагины ~15-20 сек
+            periodSeconds: 10
+            failureThreshold: 6
+
+      volumes:
+        - name: grafana-datasources        # → ConfigMap grafana-datasources
+          configMap:
+            name: grafana-datasources
+        - name: grafana-dashboards-config  # → ConfigMap grafana-dashboards-config
+          configMap:
+            name: grafana-dashboards-config
+        - name: grafana-dashboards         # → ConfigMap grafana-dashboards (JSON)
+          configMap:
+            name: grafana-dashboards
+        - name: grafana-data               # → PVC для постоянных данных
+          persistentVolumeClaim:
+            claimName: grafana-pvc
+
+---
+# ──── Service Grafana (NodePort) ──────────────────────────────────────────────
+# NodePort: Grafana доступна из браузера на http://localhost:30300
+# Логин: admin / Пароль: admin (см. GF_SECURITY_ADMIN_PASSWORD выше)
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: pet-gym
+spec:
+  selector:
+    app: grafana
+  ports:
+    - port: 3000          # Внутренний порт
+      targetPort: 3000    # Порт в контейнере Grafana
+      nodePort: 30304     # http://localhost:30304 — доступ из браузера
+  type: NodePort
