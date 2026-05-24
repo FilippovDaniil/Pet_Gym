@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Фитнес-клуб API",
-    "description": "Полная коллекция для тестирования REST API фитнес-клуба",
+    "description": "Полная коллекция для тестирования REST API фитнес-клуба. Обновлено 2026-05-24: REST рефакторинг (PATCH для статусов, 201 для создания), OpenSearch поиск.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -9,11 +9,13 @@
     { "key": "adminToken", "value": "", "type": "string" },
     { "key": "receptionToken", "value": "", "type": "string" },
     { "key": "trainer1Token", "value": "", "type": "string" },
+    { "key": "trainer2Token", "value": "", "type": "string" },
     { "key": "clientToken", "value": "", "type": "string" },
     { "key": "trainerId", "value": "", "type": "string" },
     { "key": "bookingId", "value": "", "type": "string" },
     { "key": "programId", "value": "", "type": "string" },
-    { "key": "clientId", "value": "", "type": "string" }
+    { "key": "clientId", "value": "", "type": "string" },
+    { "key": "newTypeId", "value": "", "type": "string" }
   ],
   "item": [
     {
@@ -28,7 +30,8 @@
             "pm.test('Has token', () => pm.expect(r.token).to.not.be.empty);"
           ], "type": "text/javascript" }}],
           "request": {
-            "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "url": "{{baseUrl}}/api/auth/login",
             "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@fit.com\",\n  \"password\": \"admin\"\n}" }
           }
@@ -41,7 +44,8 @@
             "pm.test('Login OK', () => pm.response.to.have.status(200));"
           ], "type": "text/javascript" }}],
           "request": {
-            "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "url": "{{baseUrl}}/api/auth/login",
             "body": { "mode": "raw", "raw": "{\n  \"email\": \"reception@fit.com\",\n  \"password\": \"reception\"\n}" }
           }
@@ -54,9 +58,24 @@
             "pm.test('Login OK', () => pm.response.to.have.status(200));"
           ], "type": "text/javascript" }}],
           "request": {
-            "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "url": "{{baseUrl}}/api/auth/login",
             "body": { "mode": "raw", "raw": "{\n  \"email\": \"trainer1@fit.com\",\n  \"password\": \"trainer1\"\n}" }
+          }
+        },
+        {
+          "name": "Login Trainer2",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "var r = pm.response.json();",
+            "pm.collectionVariables.set('trainer2Token', r.token);",
+            "pm.test('Login OK', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"trainer2@fit.com\",\n  \"password\": \"trainer2\"\n}" }
           }
         },
         {
@@ -68,7 +87,8 @@
             "pm.test('Login OK', () => pm.response.to.have.status(200));"
           ], "type": "text/javascript" }}],
           "request": {
-            "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "url": "{{baseUrl}}/api/auth/login",
             "body": { "mode": "raw", "raw": "{\n  \"email\": \"client1@fit.com\",\n  \"password\": \"client1\"\n}" }
           }
@@ -76,12 +96,14 @@
         {
           "name": "Register New Client",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Register OK', () => pm.response.to.have.status(200));",
+            "pm.test('Register → 201 Created', () => pm.response.to.have.status(201));",
             "var r = pm.response.json();",
-            "pm.test('Role is CLIENT', () => pm.expect(r.role).to.eql('CLIENT'));"
+            "pm.test('Role is CLIENT', () => pm.expect(r.role).to.eql('CLIENT'));",
+            "pm.test('Has token', () => pm.expect(r.token).to.not.be.empty);"
           ], "type": "text/javascript" }}],
           "request": {
-            "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "url": "{{baseUrl}}/api/auth/register",
             "body": { "mode": "raw", "raw": "{\n  \"email\": \"newclient@test.com\",\n  \"password\": \"pass123\",\n  \"firstName\": \"Новый\",\n  \"lastName\": \"Клиент\",\n  \"phone\": \"+79009999999\"\n}" }
           }
@@ -89,10 +111,11 @@
         {
           "name": "Register - Duplicate Email (400)",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Duplicate rejected', () => pm.response.to.have.status(400));"
+            "pm.test('Duplicate rejected → 400', () => pm.response.to.have.status(400));"
           ], "type": "text/javascript" }}],
           "request": {
-            "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "url": "{{baseUrl}}/api/auth/register",
             "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@fit.com\",\n  \"password\": \"pass123\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"Test\"\n}" }
           }
@@ -128,14 +151,14 @@
         {
           "name": "Buy Membership (type 1 = 1 month)",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Buy → 201 Created', () => pm.response.to.have.status(201));",
             "var r = pm.response.json();",
             "pm.test('Membership active', () => pm.expect(r.active).to.be.true);"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "POST",
             "header": [{ "key": "Authorization", "value": "Bearer {{clientToken}}" }],
-            "url": "{{baseUrl}}/api/client/memberships/buy/1"
+            "url": "{{baseUrl}}/api/client/memberships/1/purchases"
           }
         },
         {
@@ -143,7 +166,7 @@
           "event": [{ "listen": "test", "script": { "exec": [
             "pm.test('Status 200', () => pm.response.to.have.status(200));",
             "var trainers = pm.response.json();",
-            "if(trainers.length > 0) pm.collectionVariables.set('trainerId', String(trainers[0].id));",
+            "if (trainers.length > 0) pm.collectionVariables.set('trainerId', String(trainers[0].id));",
             "pm.test('Has trainers', () => pm.expect(trainers).to.be.an('array'));"
           ], "type": "text/javascript" }}],
           "request": {
@@ -162,18 +185,18 @@
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{clientToken}}" }],
             "url": {
-              "raw": "{{baseUrl}}/api/client/trainers/{{trainerId}}/slots?date=2026-04-25",
-              "query": [{ "key": "date", "value": "2026-04-25" }]
+              "raw": "{{baseUrl}}/api/client/trainers/{{trainerId}}/slots?date=2026-06-20",
+              "query": [{ "key": "date", "value": "2026-06-20" }]
             }
           }
         },
         {
           "name": "Create Booking",
           "event": [{ "listen": "test", "script": { "exec": [
-            "if(pm.response.code === 200) {",
-            "  pm.collectionVariables.set('bookingId', String(pm.response.json().id));",
-            "  pm.test('Booking created', () => pm.expect(pm.response.json().status).to.eql('CONFIRMED'));",
-            "}"
+            "pm.test('Booking → 201 Created', () => pm.response.to.have.status(201));",
+            "var r = pm.response.json();",
+            "pm.collectionVariables.set('bookingId', String(r.id));",
+            "pm.test('Status PENDING or CONFIRMED', () => pm.expect(r.status).to.be.oneOf(['PENDING', 'CONFIRMED']));"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "POST",
@@ -182,7 +205,7 @@
               { "key": "Content-Type", "value": "application/json" }
             ],
             "url": "{{baseUrl}}/api/client/bookings",
-            "body": { "mode": "raw", "raw": "{\n  \"trainerId\": {{trainerId}},\n  \"startDateTime\": \"2026-04-25T10:00:00\"\n}" }
+            "body": { "mode": "raw", "raw": "{\n  \"trainerId\": {{trainerId}},\n  \"startDateTime\": \"2026-06-20T10:00:00\"\n}" }
           }
         },
         {
@@ -199,7 +222,7 @@
         {
           "name": "Cancel Booking",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Status 204 or 400', () => pm.expect(pm.response.code).to.be.oneOf([204, 400]));"
+            "pm.test('Cancel → 204 or 400', () => pm.expect(pm.response.code).to.be.oneOf([204, 400]));"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "DELETE",
@@ -210,7 +233,10 @@
         {
           "name": "Get My Workout Program",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Status 200 or 204', () => pm.expect(pm.response.code).to.be.oneOf([200, 204]));"
+            "pm.test('Status 200 or 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+            "if (pm.response.code === 200) {",
+            "  pm.test('Has program id', () => pm.expect(pm.response.json()).to.have.property('id'));",
+            "}"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "GET",
@@ -220,6 +246,10 @@
         },
         {
           "name": "Get My Notifications",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+          ], "type": "text/javascript" }}],
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{clientToken}}" }],
@@ -227,9 +257,24 @@
           }
         },
         {
+          "name": "Mark All Notifications Read",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{clientToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/client/notifications",
+            "body": { "mode": "raw", "raw": "{}" }
+          }
+        },
+        {
           "name": "Client Accesses Admin Route (403)",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Forbidden', () => pm.response.to.have.status(403));"
+            "pm.test('Forbidden → 403', () => pm.response.to.have.status(403));"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "GET",
@@ -256,6 +301,9 @@
         },
         {
           "name": "Search Client by Email",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{receptionToken}}" }],
@@ -268,7 +316,7 @@
         {
           "name": "Create New Client",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            "pm.test('Create → 201 Created', () => pm.response.to.have.status(201));"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "POST",
@@ -283,7 +331,7 @@
         {
           "name": "Register Membership for Client",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            "pm.test('Register → 201 Created', () => pm.response.to.have.status(201));"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "POST",
@@ -292,13 +340,13 @@
               { "key": "Content-Type", "value": "application/json" }
             ],
             "url": "{{baseUrl}}/api/reception/memberships",
-            "body": { "mode": "raw", "raw": "{\n  \"clientId\": {{clientId}},\n  \"typeId\": 2,\n  \"startDate\": \"2026-04-20\"\n}" }
+            "body": { "mode": "raw", "raw": "{\n  \"clientId\": {{clientId}},\n  \"typeId\": 2,\n  \"startDate\": \"2026-05-24\"\n}" }
           }
         },
         {
           "name": "Mark Visit",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Status 200 or 400', () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));"
+            "pm.test('Visit → 201 or 400', () => pm.expect(pm.response.code).to.be.oneOf([201, 400]));"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "POST",
@@ -323,6 +371,9 @@
         },
         {
           "name": "Get Active Memberships",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{receptionToken}}" }],
@@ -348,7 +399,7 @@
         {
           "name": "Create Membership Type",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Create → 201 Created', () => pm.response.to.have.status(201));",
             "pm.collectionVariables.set('newTypeId', String(pm.response.json().id));"
           ], "type": "text/javascript" }}],
           "request": {
@@ -363,6 +414,9 @@
         },
         {
           "name": "Update Membership Type",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Update → 200 OK', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
           "request": {
             "method": "PUT",
             "header": [
@@ -376,7 +430,7 @@
         {
           "name": "Deactivate Membership Type",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Status 204', () => pm.response.to.have.status(204));"
+            "pm.test('Deactivate → 204 No Content', () => pm.response.to.have.status(204));"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "DELETE",
@@ -395,10 +449,10 @@
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
             "url": {
-              "raw": "{{baseUrl}}/api/admin/reports/revenue?from=2026-04-01&to=2026-04-30",
+              "raw": "{{baseUrl}}/api/admin/reports/revenue?from=2026-05-01&to=2026-05-31",
               "query": [
-                { "key": "from", "value": "2026-04-01" },
-                { "key": "to", "value": "2026-04-30" }
+                { "key": "from", "value": "2026-05-01" },
+                { "key": "to", "value": "2026-05-31" }
               ]
             }
           }
@@ -417,7 +471,7 @@
         {
           "name": "Create Staff (Trainer)",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            "pm.test('Create → 201 Created', () => pm.response.to.have.status(201));"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "POST",
@@ -431,6 +485,9 @@
         },
         {
           "name": "Create Staff (Reception)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Create → 201 Created', () => pm.response.to.have.status(201));"
+          ], "type": "text/javascript" }}],
           "request": {
             "method": "POST",
             "header": [
@@ -449,7 +506,8 @@
         {
           "name": "Get My Schedule",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "GET",
@@ -458,29 +516,33 @@
           }
         },
         {
-          "name": "Confirm Booking",
+          "name": "Confirm Booking (PATCH)",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Status 200 or 400', () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));"
+            "pm.test('Confirm → 200 or 400', () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));"
           ], "type": "text/javascript" }}],
           "request": {
-            "method": "PUT",
-            "header": [{ "key": "Authorization", "value": "Bearer {{trainer1Token}}" }],
-            "url": "{{baseUrl}}/api/trainer/bookings/{{bookingId}}/confirm"
-          }
-        },
-        {
-          "name": "Cancel Booking by Trainer",
-          "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Status 204 or 400', () => pm.expect(pm.response.code).to.be.oneOf([204, 400]));"
-          ], "type": "text/javascript" }}],
-          "request": {
-            "method": "PUT",
+            "method": "PATCH",
             "header": [
               { "key": "Authorization", "value": "Bearer {{trainer1Token}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
-            "url": "{{baseUrl}}/api/trainer/bookings/{{bookingId}}/cancel",
-            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Тренер заболел\"\n}" }
+            "url": "{{baseUrl}}/api/trainer/bookings/{{bookingId}}",
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"CONFIRMED\"\n}" }
+          }
+        },
+        {
+          "name": "Cancel Booking by Trainer (PATCH)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Cancel → 204 or 400', () => pm.expect(pm.response.code).to.be.oneOf([204, 400]));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{trainer1Token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/trainer/bookings/{{bookingId}}",
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"CANCELLED\",\n  \"reason\": \"Тренер заболел\"\n}" }
           }
         },
         {
@@ -497,7 +559,10 @@
         {
           "name": "Get Client Workout Program",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Status 200 or 204', () => pm.expect(pm.response.code).to.be.oneOf([200, 204]));"
+            "pm.test('Status 200 or 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+            "if (pm.response.code === 200) {",
+            "  pm.collectionVariables.set('programId', String(pm.response.json().id));",
+            "}"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "GET",
@@ -508,10 +573,8 @@
         {
           "name": "Create Workout Program for Client",
           "event": [{ "listen": "test", "script": { "exec": [
-            "if(pm.response.code === 200) {",
-            "  pm.collectionVariables.set('programId', String(pm.response.json().id));",
-            "  pm.test('Program created', () => pm.response.to.have.status(200));",
-            "}"
+            "pm.test('Create → 201 Created', () => pm.response.to.have.status(201));",
+            "pm.collectionVariables.set('programId', String(pm.response.json().id));"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "POST",
@@ -526,7 +589,7 @@
         {
           "name": "Update Workout Program",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+            "pm.test('Update → 200 OK', () => pm.response.to.have.status(200));"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "PUT",
@@ -540,6 +603,9 @@
         },
         {
           "name": "Get All My Programs",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{trainer1Token}}" }],
@@ -548,10 +614,93 @@
         },
         {
           "name": "Get Trainer Notifications",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+          ], "type": "text/javascript" }}],
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{trainer1Token}}" }],
             "url": "{{baseUrl}}/api/trainer/notifications"
+          }
+        },
+        {
+          "name": "Mark All Notifications Read (Trainer)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{trainer1Token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/trainer/notifications",
+            "body": { "mode": "raw", "raw": "{}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Search",
+      "item": [
+        {
+          "name": "Search All Trainers (match_all)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/search/trainers"
+          }
+        },
+        {
+          "name": "Search Trainers by Query",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+            "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/search/trainers?q=силовые",
+              "query": [{ "key": "q", "value": "силовые" }]
+            }
+          }
+        },
+        {
+          "name": "Search Trainers by Specialization",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/search/trainers?specialization=йога",
+              "query": [{ "key": "specialization", "value": "йога" }]
+            }
+          }
+        },
+        {
+          "name": "Search Trainers - No Auth Required (permitAll)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('No auth needed → 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/search/trainers?q=тренер&page=0&size=5",
+              "query": [
+                { "key": "q", "value": "тренер" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "5" }
+              ]
+            }
           }
         }
       ]
@@ -562,17 +711,18 @@
         {
           "name": "No Token → 401",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Unauthorized', () => pm.response.to.have.status(401));"
+            "pm.test('Unauthorized → 401', () => pm.response.to.have.status(401));"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "GET",
+            "header": [],
             "url": "{{baseUrl}}/api/client/memberships/types"
           }
         },
         {
           "name": "Wrong Token → 401",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Unauthorized', () => pm.response.to.have.status(401));"
+            "pm.test('Unauthorized → 401', () => pm.response.to.have.status(401));"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "GET",
@@ -583,7 +733,7 @@
         {
           "name": "Trainer Access Admin → 403",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Forbidden', () => pm.response.to.have.status(403));"
+            "pm.test('Forbidden → 403', () => pm.response.to.have.status(403));"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "GET",
@@ -594,12 +744,23 @@
         {
           "name": "Admin Access Client → 403",
           "event": [{ "listen": "test", "script": { "exec": [
-            "pm.test('Forbidden', () => pm.response.to.have.status(403));"
+            "pm.test('Forbidden → 403', () => pm.response.to.have.status(403));"
           ], "type": "text/javascript" }}],
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
             "url": "{{baseUrl}}/api/client/bookings"
+          }
+        },
+        {
+          "name": "Search Without Token → 200 (permitAll)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Search is public → 200', () => pm.response.to.have.status(200));"
+          ], "type": "text/javascript" }}],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/search/trainers"
           }
         }
       ]
