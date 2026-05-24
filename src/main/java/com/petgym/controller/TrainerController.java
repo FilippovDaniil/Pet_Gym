@@ -1,6 +1,8 @@
 package com.petgym.controller;
 
 import com.petgym.dto.*;
+import com.petgym.exception.BusinessException;
+import com.petgym.exception.ResourceNotFoundException;
 import com.petgym.service.BookingService;
 import com.petgym.service.NotificationService;
 import com.petgym.service.UserService;
@@ -11,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -45,22 +48,23 @@ public class TrainerController {
         return ResponseEntity.ok(bookingService.getTrainerUpcomingBookings(getCurrentUserId(user)));
     }
 
-    // PUT /api/trainer/bookings/{bookingId}/confirm — подтвердить бронирование
-    @PutMapping("/bookings/{bookingId}/confirm")
-    @Operation(summary = "Подтвердить бронирование")
-    public ResponseEntity<BookingDto> confirm(@PathVariable Long bookingId,
-                                              @AuthenticationPrincipal UserDetails user) {
-        return ResponseEntity.ok(bookingService.confirmByTrainer(bookingId, getCurrentUserId(user)));
-    }
-
-    // PUT /api/trainer/bookings/{bookingId}/cancel — отменить бронирование с указанием причины
-    @PutMapping("/bookings/{bookingId}/cancel")
-    @Operation(summary = "Отменить бронирование")
-    public ResponseEntity<Void> cancel(@PathVariable Long bookingId,
-                                       @RequestBody CancelRequest request, // причина отмены в теле запроса
-                                       @AuthenticationPrincipal UserDetails user) {
-        bookingService.cancelByTrainer(bookingId, getCurrentUserId(user), request.getReason());
-        return ResponseEntity.noContent().build(); // 204 No Content
+    // PATCH /api/trainer/bookings/{bookingId} — изменить статус бронирования
+    // Тело: {"status":"CONFIRMED"} или {"status":"CANCELLED","reason":"..."}
+    // Заменяет два отдельных эндпоинта с глаголами (confirm/cancel) одним PATCH
+    @PatchMapping("/bookings/{bookingId}")
+    @Operation(summary = "Изменить статус бронирования (CONFIRMED / CANCELLED)")
+    public ResponseEntity<?> updateBookingStatus(@PathVariable Long bookingId,
+                                                 @RequestBody BookingStatusRequest request,
+                                                 @AuthenticationPrincipal UserDetails user) {
+        Long trainerId = getCurrentUserId(user);
+        return switch (request.getStatus()) {
+            case "CONFIRMED" -> ResponseEntity.ok(bookingService.confirmByTrainer(bookingId, trainerId));
+            case "CANCELLED" -> {
+                bookingService.cancelByTrainer(bookingId, trainerId, request.getReason());
+                yield ResponseEntity.noContent().build();
+            }
+            default -> throw new BusinessException("Допустимые статусы: CONFIRMED, CANCELLED");
+        };
     }
 
     // GET /api/trainer/clients — мои клиенты (все кто когда-либо бронировал у меня)
@@ -83,21 +87,23 @@ public class TrainerController {
     }
 
     // GET /api/trainer/clients/{clientId}/workout-program — посмотреть программу клиента
+    // 404 если программа не назначена
     @GetMapping("/clients/{clientId}/workout-program")
     @Operation(summary = "Программа тренировок клиента")
     public ResponseEntity<WorkoutProgramDto> getClientProgram(@PathVariable Long clientId) {
         WorkoutProgramDto program = workoutService.getClientProgram(clientId);
-        if (program == null) return ResponseEntity.noContent().build(); // 204 если программы нет
+        if (program == null) throw new ResourceNotFoundException("Программа тренировок не назначена");
         return ResponseEntity.ok(program);
     }
 
-    // POST /api/trainer/clients/{clientId}/workout-program — создать программу для клиента
+    // POST /api/trainer/clients/{clientId}/workout-program — создать программу → 201 Created
     @PostMapping("/clients/{clientId}/workout-program")
     @Operation(summary = "Создать программу для клиента")
     public ResponseEntity<WorkoutProgramDto> createProgram(@PathVariable Long clientId,
                                                            @Valid @RequestBody WorkoutProgramDto dto,
                                                            @AuthenticationPrincipal UserDetails user) {
-        return ResponseEntity.ok(workoutService.createProgram(getCurrentUserId(user), clientId, dto));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(workoutService.createProgram(getCurrentUserId(user), clientId, dto));
     }
 
     // PUT /api/trainer/clients/{clientId}/workout-program/{programId} — обновить программу
@@ -124,16 +130,17 @@ public class TrainerController {
         return ResponseEntity.ok(notificationService.getMyNotifications(getCurrentUserId(user)));
     }
 
-    // POST /api/trainer/notifications/read — пометить уведомления прочитанными
-    @PostMapping("/notifications/read")
+    // PATCH /api/trainer/notifications — пометить все уведомления как прочитанные
+    @PatchMapping("/notifications")
     public ResponseEntity<Void> markRead(@AuthenticationPrincipal UserDetails user) {
         notificationService.markAllRead(getCurrentUserId(user));
         return ResponseEntity.ok().build();
     }
 
-    // Вложенный класс для тела запроса отмены тренировки
+    // Тело запроса для PATCH /bookings/{id}: статус + опциональная причина отмены
     @Data
-    static class CancelRequest {
-        private String reason; // причина отмены (обязательна при отмене тренером)
+    static class BookingStatusRequest {
+        private String status; // CONFIRMED или CANCELLED
+        private String reason; // только для CANCELLED
     }
 }

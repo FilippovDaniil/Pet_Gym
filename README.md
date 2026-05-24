@@ -37,6 +37,7 @@
 | ORM | Spring Data JPA (Hibernate) | — |
 | СУБД | PostgreSQL | 17–18 |
 | Миграции БД | Flyway | 10.21.0 |
+| Полнотекстовый поиск | OpenSearch + opensearch-java | 2.17.0 / 2.15.0 |
 | Документация API | Springdoc OpenAPI (Swagger UI) | 2.4.0 |
 | Токены | jjwt (io.jsonwebtoken) | 0.12.5 |
 | Генерация кода | Lombok | — |
@@ -68,7 +69,8 @@ HTTP Request
 ┌─────────────────────────────────────────────────────┐
 │            Controller Layer  (REST API)              │
 │  AuthController, ClientController, AdminController,  │
-│  ReceptionController, TrainerController              │
+│  ReceptionController, TrainerController,             │
+│  SearchController                                    │
 │  — принимает HTTP запросы                            │
 │  — валидирует DTO через @Valid                       │
 │  — делегирует бизнес-логику в Service                │
@@ -101,11 +103,21 @@ HTTP Request
 └─────────────────────────────────────────────────────┘
 
 Логи из всех слоёв → Loki → Grafana (http://localhost:3000)
+
+┌─────────────────────────────────────────────────────┐
+│             OpenSearch (search layer)                │
+│  SearchController → TrainerSearchService             │
+│  — индекс trainers: firstName, lastName, bio         │
+│  — multi_match + fuzziness AUTO                      │
+│  — @ConditionalOnProperty: при enabled=false         │
+│    клиент не создаётся, поиск возвращает []          │
+└─────────────────────────────────────────────────────┘
 ```
 
 ### Дополнительные компоненты
 
-- **`config/`** — `SecurityConfig` (правила доступа), `SwaggerConfig` (Swagger UI), `DataInitializer` (тестовые данные)
+- **`config/`** — `SecurityConfig` (правила доступа), `SwaggerConfig` (Swagger UI), `DataInitializer` (тестовые данные), `OpenSearchConfig` (клиент OpenSearch, Вариант B)
+- **`search/`** — `TrainerDocument`, `TrainerSearchService`, `TrainerSearchServiceImpl`, `SearchInitializer` (реиндексация при старте)
 - **`scheduled/`** — `ScheduledTasks` — фоновые задачи по cron-расписанию
 - **`exception/`** — `GlobalExceptionHandler` — единая обработка всех ошибок через `@RestControllerAdvice`
 - **`security/`** — JWT-фильтр, UserDetailsService, провайдер токенов
@@ -122,16 +134,18 @@ Pet_Gym/
 │   │   │   ├── PetGymApplication.java          # Точка входа (@SpringBootApplication + @EnableScheduling)
 │   │   │   │
 │   │   │   ├── config/
-│   │   │   │   ├── DataInitializer.java        # Создаёт тестовых пользователей при старте
+│   │   │   │   ├── DataInitializer.java        # Создаёт тестовых пользователей при старте (@Order(1))
+│   │   │   │   ├── OpenSearchConfig.java       # Бин OpenSearchClient (@ConditionalOnProperty, Вариант B)
 │   │   │   │   ├── SecurityConfig.java         # Правила Spring Security + CORS
 │   │   │   │   └── SwaggerConfig.java          # Настройка OpenAPI / Swagger UI
 │   │   │   │
 │   │   │   ├── controller/
 │   │   │   │   ├── AuthController.java         # POST /api/auth/register, /login
-│   │   │   │   ├── ClientController.java       # GET/POST /api/client/**
+│   │   │   │   ├── ClientController.java       # GET/POST/PATCH /api/client/**
 │   │   │   │   ├── ReceptionController.java    # GET/POST /api/reception/**
 │   │   │   │   ├── AdminController.java        # CRUD   /api/admin/**
-│   │   │   │   └── TrainerController.java      # GET/PUT /api/trainer/**
+│   │   │   │   ├── TrainerController.java      # GET/PATCH /api/trainer/**
+│   │   │   │   └── SearchController.java       # GET /api/search/trainers (permitAll)
 │   │   │   │
 │   │   │   ├── domain/                         # JPA-сущности (таблицы БД)
 │   │   │   │   ├── User.java
@@ -195,18 +209,24 @@ Pet_Gym/
 │   │   │   │   ├── JwtAuthenticationFilter.java# OncePerRequestFilter
 │   │   │   │   └── UserDetailsServiceImpl.java # Загрузка пользователя для Spring Security
 │   │   │   │
+│   │   │   ├── search/
+│   │   │   │   ├── TrainerDocument.java        # POJO-документ для OpenSearch (не JPA-сущность)
+│   │   │   │   ├── TrainerSearchService.java   # Интерфейс: indexTrainer, removeTrainer, search, reindexAll
+│   │   │   │   ├── TrainerSearchServiceImpl.java # Паттерн B: @Autowired(required=false) + null-guard
+│   │   │   │   └── SearchInitializer.java      # ApplicationRunner @Order(2): реиндексация при старте
+│   │   │   │
 │   │   │   └── service/
 │   │   │       ├── AuthService.java
 │   │   │       ├── BookingService.java
 │   │   │       ├── MembershipService.java
 │   │   │       ├── NotificationService.java
 │   │   │       ├── ReportService.java
-│   │   │       ├── UserService.java
+│   │   │       ├── UserService.java            # при создании тренера вызывает indexTrainer
 │   │   │       ├── VisitService.java
 │   │   │       └── WorkoutService.java
 │   │   │
 │   │   └── resources/
-│   │       ├── application.properties          # Основной конфиг (PostgreSQL, JWT, порт)
+│   │       ├── application.properties          # Основной конфиг (PostgreSQL, JWT, порт, opensearch)
 │   │       ├── application-postgres.properties # Профиль для другого сервера PostgreSQL
 │   │       ├── logback-spring.xml              # Конфиг логирования (Loki в docker-профиле)
 │   │       ├── db/migration/
@@ -226,10 +246,13 @@ Pet_Gym/
 │   │               ├── admin.js
 │   │               └── trainer.js
 │   │
-│   └── test/java/com/petgym/
-│       └── service/
-│           ├── MembershipServiceTest.java      # Unit-тесты сервиса абонементов
-│           └── BookingServiceTest.java         # Unit-тесты бронирования
+│   └── test/
+│       ├── java/com/petgym/
+│       │   └── service/
+│       │       ├── MembershipServiceTest.java  # Unit-тесты сервиса абонементов
+│       │       └── BookingServiceTest.java     # Unit-тесты бронирования
+│       └── resources/
+│           └── application-test.properties    # opensearch.enabled=false (тесты без OpenSearch)
 │
 ├── docker/
 │   ├── loki/
@@ -242,8 +265,12 @@ Pet_Gym/
 │               ├── dashboards.yml             # Провайдер дашбордов
 │               └── petgym-logs.json           # Готовый дашборд логов
 │
+├── rancher/
+│   ├── build-and-load.ps1                     # Сборка образа + загрузка в Rancher Desktop VM
+│   └── k8s/                                   # Kubernetes-манифесты (см. раздел 12)
+│
 ├── Dockerfile                                  # Многостадийная сборка Docker-образа
-├── docker-compose.yml                          # Запуск app + db + loki + grafana
+├── docker-compose.yml                          # Запуск app + db + loki + grafana + opensearch
 ├── .dockerignore
 ├── build.gradle
 ├── settings.gradle
@@ -439,42 +466,42 @@ BCrypt — необратимая функция: по хэшу нельзя в�
 
 ### Client (`/api/client`) — роль CLIENT
 
-| Метод | URL | Описание |
-|-------|-----|---------|
-| `GET` | `/api/client/memberships/types` | Все активные типы абонементов |
-| `GET` | `/api/client/memberships/active` | Мои абонементы (все) |
-| `POST` | `/api/client/memberships/buy/{typeId}` | Купить абонемент (startDate = сегодня) |
-| `GET` | `/api/client/trainers` | Список всех тренеров |
-| `GET` | `/api/client/trainers/{id}/slots?date=YYYY-MM-DD` | Свободные часовые слоты (9–18ч) |
-| `POST` | `/api/client/bookings` | Создать бронирование `{trainerId, startDateTime}` |
-| `GET` | `/api/client/bookings` | Все мои бронирования |
-| `DELETE` | `/api/client/bookings/{id}` | Отменить (только за ≥2 часа до начала) |
-| `GET` | `/api/client/workout-program` | Моя программа тренировок |
-| `GET` | `/api/client/notifications` | Непрочитанные уведомления |
-| `POST` | `/api/client/notifications/read` | Пометить все как прочитанные |
+| Метод | URL | Статус | Описание |
+|-------|-----|--------|---------|
+| `GET` | `/api/client/memberships/types` | 200 | Все активные типы абонементов |
+| `GET` | `/api/client/memberships/active` | 200 | Мои абонементы (все) |
+| `POST` | `/api/client/memberships/{typeId}/purchases` | 201 | Купить абонемент (startDate = сегодня) |
+| `GET` | `/api/client/trainers` | 200 | Список всех тренеров |
+| `GET` | `/api/client/trainers/{id}/slots?date=YYYY-MM-DD` | 200 | Свободные часовые слоты (9–18ч) |
+| `POST` | `/api/client/bookings` | 201 | Создать бронирование `{trainerId, startDateTime}` |
+| `GET` | `/api/client/bookings` | 200 | Все мои бронирования |
+| `DELETE` | `/api/client/bookings/{id}` | 204 | Отменить (только за ≥2 часа до начала) |
+| `GET` | `/api/client/workout-program` | 200 / 404 | Моя программа тренировок (404 если не назначена) |
+| `GET` | `/api/client/notifications` | 200 | Непрочитанные уведомления |
+| `PATCH` | `/api/client/notifications` | 200 | Пометить все как прочитанные |
 
 ### Reception (`/api/reception`) — роль RECEPTION
 
-| Метод | URL | Описание |
-|-------|-----|---------|
-| `GET` | `/api/reception/clients?query=...` | Поиск клиентов по email/телефону |
-| `POST` | `/api/reception/clients` | Создать нового клиента |
-| `POST` | `/api/reception/memberships` | Оформить абонемент `{clientId, typeId, startDate?}` |
-| `GET` | `/api/reception/memberships/active` | Все активные абонементы |
-| `POST` | `/api/reception/visits` | Отметить посещение `{clientId}` |
-| `GET` | `/api/reception/visits/today` | Посещения сегодня |
+| Метод | URL | Статус | Описание |
+|-------|-----|--------|---------|
+| `GET` | `/api/reception/clients?query=...` | 200 | Поиск клиентов по email/телефону |
+| `POST` | `/api/reception/clients` | 201 | Создать нового клиента |
+| `POST` | `/api/reception/memberships` | 201 | Оформить абонемент `{clientId, typeId, startDate?}` |
+| `GET` | `/api/reception/memberships/active` | 200 | Все активные абонементы |
+| `POST` | `/api/reception/visits` | 201 | Отметить посещение `{clientId}` |
+| `GET` | `/api/reception/visits/today` | 200 | Посещения сегодня |
 
 ### Admin (`/api/admin`) — роль ADMIN
 
-| Метод | URL | Описание |
-|-------|-----|---------|
-| `GET` | `/api/admin/membership-types` | Все типы абонементов |
-| `POST` | `/api/admin/membership-types` | Создать тип `{name, durationDays, price}` |
-| `PUT` | `/api/admin/membership-types/{id}` | Обновить тип |
-| `DELETE` | `/api/admin/membership-types/{id}` | Деактивировать тип (soft delete) |
-| `GET` | `/api/admin/reports/revenue?from=...&to=...` | Финансовый отчёт |
-| `GET` | `/api/admin/users` | Список сотрудников |
-| `POST` | `/api/admin/users` | Создать сотрудника `{email, password, role, ...}` |
+| Метод | URL | Статус | Описание |
+|-------|-----|--------|---------|
+| `GET` | `/api/admin/membership-types` | 200 | Все типы абонементов |
+| `POST` | `/api/admin/membership-types` | 201 | Создать тип `{name, durationDays, price}` |
+| `PUT` | `/api/admin/membership-types/{id}` | 200 | Обновить тип |
+| `DELETE` | `/api/admin/membership-types/{id}` | 204 | Деактивировать тип (soft delete) |
+| `GET` | `/api/admin/reports/revenue?from=...&to=...` | 200 | Финансовый отчёт |
+| `GET` | `/api/admin/users` | 200 | Список сотрудников |
+| `POST` | `/api/admin/users` | 201 | Создать сотрудника `{email, password, role, ...}` |
 
 `RevenueReportDto`:
 ```json
@@ -491,18 +518,50 @@ BCrypt — необратимая функция: по хэшу нельзя в�
 
 ### Trainer (`/api/trainer`) — роль TRAINER
 
-| Метод | URL | Описание |
-|-------|-----|---------|
-| `GET` | `/api/trainer/bookings` | Предстоящие тренировки |
-| `PUT` | `/api/trainer/bookings/{id}/confirm` | Подтвердить бронирование |
-| `PUT` | `/api/trainer/bookings/{id}/cancel` | Отменить `{reason}` (уведомляет клиента) |
-| `GET` | `/api/trainer/clients` | Клиенты, бронировавшие тренировки у меня |
-| `GET` | `/api/trainer/clients/{id}/workout-program` | Программа клиента |
-| `POST` | `/api/trainer/clients/{id}/workout-program` | Создать программу `{name, exercises[]}` |
-| `PUT` | `/api/trainer/clients/{id}/workout-program/{pid}` | Обновить программу |
-| `GET` | `/api/trainer/programs` | Все мои программы |
-| `GET` | `/api/trainer/notifications` | Уведомления |
-| `POST` | `/api/trainer/notifications/read` | Прочитать все |
+| Метод | URL | Статус | Описание |
+|-------|-----|--------|---------|
+| `GET` | `/api/trainer/bookings` | 200 | Предстоящие тренировки |
+| `PATCH` | `/api/trainer/bookings/{id}` | 200 / 204 | Изменить статус брони `{status: CONFIRMED\|CANCELLED, reason?}` |
+| `GET` | `/api/trainer/clients` | 200 | Клиенты, бронировавшие тренировки у меня |
+| `GET` | `/api/trainer/clients/{id}/workout-program` | 200 / 404 | Программа клиента (404 если не создана) |
+| `POST` | `/api/trainer/clients/{id}/workout-program` | 201 | Создать программу `{name, exercises[]}` |
+| `PUT` | `/api/trainer/clients/{id}/workout-program/{pid}` | 200 | Обновить программу |
+| `GET` | `/api/trainer/programs` | 200 | Все мои программы |
+| `GET` | `/api/trainer/notifications` | 200 | Уведомления |
+| `PATCH` | `/api/trainer/notifications` | 200 | Пометить все как прочитанные |
+
+**PATCH `/api/trainer/bookings/{id}`** — тело запроса:
+```json
+{ "status": "CONFIRMED" }          // → 200 с BookingDto
+{ "status": "CANCELLED", "reason": "Заболел" }  // → 204 No Content (уведомляет клиента)
+```
+
+### Search (`/api/search`) — публичный доступ (permitAll)
+
+| Метод | URL | Статус | Описание |
+|-------|-----|--------|---------|
+| `GET` | `/api/search/trainers` | 200 | Полнотекстовый поиск тренеров |
+
+**Параметры запроса:**
+
+| Параметр | Тип | Обязательный | Описание |
+|---------|-----|-------------|---------|
+| `q` | String | нет | Полнотекстовый запрос (поля: firstName^2, lastName^2, specialization, bio) |
+| `specialization` | String | нет | Точный фильтр по специализации (match query) |
+| `page` | int | нет | Номер страницы (от 0, по умолчанию 0) |
+| `size` | int | нет | Размер страницы (по умолчанию 20) |
+
+Примеры:
+```
+GET /api/search/trainers?q=йога
+GET /api/search/trainers?specialization=силовые
+GET /api/search/trainers?q=Иван&specialization=кроссфит
+GET /api/search/trainers           # match_all — все тренеры
+```
+
+Возвращает список `TrainerDocument`: `[{id, firstName, lastName, email, specialization, bio}]`.
+
+Если OpenSearch недоступен (`opensearch.enabled=false`) — возвращает `[]`, не 500.
 
 ---
 
@@ -726,16 +785,19 @@ gradlew.bat bootRun
 docker compose up --build -d
 ```
 
-Запускается **четыре контейнера**:
+Запускается **пять контейнеров**:
 
 | Контейнер | Образ | Назначение | Порт |
 |-----------|-------|-----------|------|
 | `petgym-db` | postgres:17-alpine | База данных | 5433 |
+| `petgym-opensearch` | opensearchproject/opensearch:2.17.0 | Полнотекстовый поиск | 9200 |
 | `petgym-app` | (собирается из Dockerfile) | Spring Boot приложение | 8091 |
 | `petgym-loki` | grafana/loki:3.0.0 | Сбор логов | 3100 |
 | `petgym-grafana` | grafana/grafana:11.0.0 | Просмотр логов | 3000 |
 
-Порядок запуска: `loki` и `db` стартуют первыми → `app` ждёт их готовности → `grafana` ждёт готовности `loki`.
+Порядок запуска: `loki`, `db` и `opensearch` стартуют первыми → `app` ждёт их готовности → `grafana` ждёт готовности `loki`.
+
+> OpenSearch стартует ~60 секунд. `healthcheck` в docker-compose ждёт статуса `green` или `yellow` кластера перед запуском `app`.
 
 ### Адреса после запуска
 
@@ -851,8 +913,33 @@ rancher/
     ├── 04-prometheus.yaml   ← Prometheus: ConfigMap + PVC(1Gi) + Deployment + Service(NodePort 30903)
     ├── 05-grafana.yaml      ← Grafana: 3×ConfigMap + PVC(256Mi) + Deployment + Service(NodePort 30304)
     ├── 06-app.yaml          ← Spring Boot: ConfigMap + Deployment + Service(NodePort 30091)
-    └── 07-dashboard.yaml    ← K8s Dashboard (namespace kubernetes-dashboard, NodePort 30443)
+    ├── 07-dashboard.yaml    ← K8s Dashboard (namespace kubernetes-dashboard, NodePort 30443)
+    └── 08-opensearch.yaml   ← OpenSearch: PVC(1Gi) + Deployment + Service(ClusterIP 9200)
 ```
+
+**08-opensearch.yaml** содержит три ключевых элемента:
+
+1. **sysctl initContainer** — привилегированный контейнер устанавливает `vm.max_map_count=262144` (обязательное требование OpenSearch):
+   ```yaml
+   initContainers:
+     - name: sysctl-fix
+       image: busybox:1.36
+       command: ["sysctl", "-w", "vm.max_map_count=262144"]
+       securityContext:
+         privileged: true
+   ```
+
+2. **imagePullPolicy: IfNotPresent** — НЕ `Never`. OpenSearch — публичный образ, k3s скачивает его сам.
+
+3. **Ресурсы**: requests 600Mi / 250m, limits 1Gi / 1000m. Heap зафиксирован через `OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m`.
+
+**06-app.yaml** дополнительно содержит `wait-for-opensearch` initContainer:
+```yaml
+- name: wait-for-opensearch
+  image: busybox:1.36
+  command: ["sh", "-c", "until nc -z opensearch-service 9200; do sleep 3; done"]
+```
+Приложение не стартует, пока OpenSearch не ответит на TCP-соединение.
 
 Каждый ресурс подробно прокомментирован внутри файлов.
 
@@ -913,7 +1000,10 @@ kubectl apply -f rancher/k8s/
 | Симптом | Причина | Решение |
 |---------|---------|---------|
 | `ErrImageNeverPull` | Образ в Docker Desktop, не в VM | `.\rancher\build-and-load.ps1` |
-| `CrashLoopBackOff` приложения | PostgreSQL не готов | initContainer ждёт — просто подождать |
+| `CrashLoopBackOff` приложения | PostgreSQL или OpenSearch не готов | initContainers ждут — просто подождать |
+| OpenSearch Exit Code 78 | `vm.max_map_count` слишком мал | privileged initContainer sysctl в `08-opensearch.yaml` |
+| `ErrImageNeverPull` для opensearch | `imagePullPolicy: Never` для публичного образа | Изменить на `IfNotPresent` |
+| App pod в `Init:1/2` надолго | OpenSearch ещё не готов | Нормально — `wait-for-opensearch` ждёт TCP:9200 |
 | readinessProbe fails | Spring Boot ещё загружается | Подождать 40-90 сек (настроено в манифесте) |
 | Логи не в Grafana | `SPRING_PROFILES_ACTIVE != docker` | Проверить ConfigMap: `kubectl get cm pet-gym-config -n pet-gym -o yaml` |
 
@@ -969,7 +1059,7 @@ Booking created     — успешные бронирования
 
 ---
 
-## 13. Тестирование через Postman
+## 14. Тестирование через Postman
 
 ### Импорт коллекции
 
@@ -1010,7 +1100,7 @@ Booking created     — успешные бронирования
 
 ---
 
-## 14. Тестовые аккаунты
+## 15. Тестовые аккаунты
 
 Создаются автоматически классом `DataInitializer` при первом запуске.
 
@@ -1025,7 +1115,7 @@ Booking created     — успешные бронирования
 
 ---
 
-## 15. Частые ошибки и их решения
+## 16. Частые ошибки и их решения
 
 ### `Unsupported Database: PostgreSQL 18.0`
 
@@ -1143,6 +1233,59 @@ POST /api/client/bookings
 2. Loki не готов — проверь: `docker logs petgym-loki`
 3. Профиль не активен — убедись, что в `docker-compose.yml` есть `SPRING_PROFILES_ACTIVE: docker`
 4. Неверный временной диапазон в Grafana — выбери «Last 1 hour» в правом верхнем углу
+
+---
+
+### `MatchQuery.query(String)` — ошибка компиляции с OpenSearch
+
+**Причина**: В `opensearch-java 2.x` метод `MatchQuery.Builder.query()` принимает `FieldValue`, не `String`.
+
+**Решение** (применено в `TrainerSearchServiceImpl`):
+```java
+// ❌ Не компилируется:
+.query(specialization)
+
+// ✅ Правильно:
+import org.opensearch.client.opensearch._types.FieldValue;
+.query(FieldValue.of(specialization))
+```
+
+---
+
+### `build-and-load.ps1` — ParseException с кириллицей
+
+**Причина**: PowerShell 5.1 не поддерживает кириллицу в комментариях `.ps1` файлов.
+
+**Обходной путь** — выполнить шаги вручную:
+```powershell
+# 1. Сборка образа
+docker build --provenance=false -t pet-gym-app:latest .
+
+# 2. Экспорт в tar
+docker save pet-gym-app:latest -o pet-gym-app.tar
+
+# 3. Загрузка в Rancher Desktop VM
+rdctl shell -- sh -c "docker load < /mnt/host/c/Users/<USERNAME>/IdeaProjects/Pet_Gym/pet-gym-app.tar"
+
+# 4. Деплой / обновление
+kubectl apply -f rancher/k8s/
+kubectl rollout restart deployment/pet-gym-app -n pet-gym
+```
+
+---
+
+### OpenSearch не индексирует тренеров при старте
+
+**Причина**: `SearchInitializer` (`@Order(2)`) зависит от `DataInitializer` (`@Order(1)`).
+Если тренеры ещё не созданы — индекс будет пустым.
+
+**Проверка**: в логах должно быть:
+```
+OpenSearch index 'trainers' создан
+OpenSearch: реиндексировано 2 тренеров
+```
+
+Если строк нет — проверить `opensearch.enabled=true` в `application.properties`.
 
 ---
 

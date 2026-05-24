@@ -12,8 +12,11 @@ import com.petgym.exception.ResourceNotFoundException;
 import com.petgym.repository.ClientRepository;
 import com.petgym.repository.TrainerRepository;
 import com.petgym.repository.UserRepository;
+import com.petgym.search.TrainerDocument;
+import com.petgym.search.TrainerSearchService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +35,10 @@ public class UserService {
     private final TrainerRepository trainerRepository;
     private final PasswordEncoder passwordEncoder;
     private final MembershipService membershipService;
+
+    // required=false — работает если opensearch.enabled=false
+    @Autowired(required = false)
+    private TrainerSearchService trainerSearchService;
 
     // Поиск клиентов по email или телефону (для ресепшена: находит клиента у стойки)
     @Transactional(readOnly = true)
@@ -101,6 +108,16 @@ public class UserService {
                     .bio(bio)
                     .build();
             trainerRepository.save(trainer);
+            if (trainerSearchService != null) {
+                trainerSearchService.indexTrainer(TrainerDocument.builder()
+                        .id(String.valueOf(user.getId()))
+                        .firstName(user.getFirstName())
+                        .lastName(user.getLastName())
+                        .email(user.getEmail())
+                        .specialization(specialization)
+                        .bio(bio)
+                        .build());
+            }
         }
         log.info("[ADMIN] event=STAFF_CREATED userId={} email={} role={} name=\"{} {}\"",
                 user.getId(), user.getEmail(), user.getRole(), user.getFirstName(), user.getLastName());

@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner; // интерфейс: run() вызывается сразу после старта Spring
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import java.time.LocalDate;
 
 @Slf4j
 @Component
+@Order(1) // запускается первым — создаёт тестовые данные до SearchInitializer
 @RequiredArgsConstructor
 // ApplicationRunner — Spring вызовет метод run() один раз при старте приложения
 // Используется для заполнения БД тестовыми данными

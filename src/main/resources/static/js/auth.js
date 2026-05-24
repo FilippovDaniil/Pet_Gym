@@ -76,6 +76,7 @@ function getUserName() { return localStorage.getItem('userName'); }
 async function get(path) { return apiCall('GET', path, null, getToken()); }
 async function post(path, body) { return apiCall('POST', path, body, getToken()); }
 async function put(path, body) { return apiCall('PUT', path, body, getToken()); }
+async function patch(path, body) { return apiCall('PATCH', path, body, getToken()); }
 async function del(path) {
     const res = await fetch(API + path, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + getToken() } });
     if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || res.statusText); }

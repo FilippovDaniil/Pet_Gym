@@ -42,6 +42,12 @@ dependencies {
     // Loki log appender
     implementation 'com.github.loki4j:loki-logback-appender:1.5.2'
 
+    // OpenSearch
+    implementation 'org.opensearch.client:opensearch-java:2.15.0'
+    // ⚠️ Без явной версии — Spring Boot 3.4.4 BOM управляет (5.4.x)
+    // Явная 5.3.x → NoClassDefFoundError: TlsSocketStrategy
+    implementation 'org.apache.httpcomponents.client5:httpclient5'
+
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

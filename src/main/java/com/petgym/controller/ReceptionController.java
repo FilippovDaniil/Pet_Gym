@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -47,11 +48,10 @@ public class ReceptionController {
         return ResponseEntity.ok(userService.searchClients(query));
     }
 
-    // POST /api/reception/clients — создать нового клиента (ресепшен регистрирует у стойки)
+    // POST /api/reception/clients — создать нового клиента → 201 Created
     @PostMapping("/clients")
     @Operation(summary = "Создать нового клиента")
     public ResponseEntity<ClientDto> createClient(@RequestBody CreateClientRequest request) {
-        // собираем UserDto из данных запроса
         UserDto dto = UserDto.builder()
                 .email(request.getEmail())
                 .firstName(request.getFirstName())
@@ -59,16 +59,17 @@ public class ReceptionController {
                 .phone(request.getPhone())
                 .role(Role.CLIENT)
                 .build();
-        return ResponseEntity.ok(userService.createClient(dto, request.getPassword(), request.getBirthDate()));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(userService.createClient(dto, request.getPassword(), request.getBirthDate()));
     }
 
-    // POST /api/reception/memberships — оформить абонемент клиенту
+    // POST /api/reception/memberships — оформить абонемент клиенту → 201 Created
     @PostMapping("/memberships")
     @Operation(summary = "Оформить абонемент клиенту")
     public ResponseEntity<PurchaseDto> createMembership(@RequestBody CreateMembershipRequest request) {
-        // если дата начала не указана — берём сегодня
         LocalDate startDate = request.getStartDate() != null ? request.getStartDate() : LocalDate.now();
-        return ResponseEntity.ok(membershipService.buyMembership(request.getClientId(), request.getTypeId(), startDate));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(membershipService.buyMembership(request.getClientId(), request.getTypeId(), startDate));
     }
 
     // GET /api/reception/memberships/active — все действующие абонементы
@@ -78,13 +79,13 @@ public class ReceptionController {
         return ResponseEntity.ok(membershipService.getActiveMemberships());
     }
 
-    // POST /api/reception/visits — отметить посещение клиента
+    // POST /api/reception/visits — отметить посещение клиента → 201 Created
     @PostMapping("/visits")
     @Operation(summary = "Отметить посещение клиента")
     public ResponseEntity<VisitDto> markVisit(@RequestBody MarkVisitRequest request,
                                               @AuthenticationPrincipal UserDetails user) {
-        // markedByUserId = id текущего сотрудника ресепшена (кто нажал кнопку)
-        return ResponseEntity.ok(visitService.markVisit(request.getClientId(), getCurrentUserId(user)));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(visitService.markVisit(request.getClientId(), getCurrentUserId(user)));
     }
 
     // GET /api/reception/visits/today — все посещения за сегодня

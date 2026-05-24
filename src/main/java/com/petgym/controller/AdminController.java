@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -39,11 +40,11 @@ public class AdminController {
         return ResponseEntity.ok(membershipService.getAllTypes());
     }
 
-    // POST /api/admin/membership-types — создать новый вид абонемента
+    // POST /api/admin/membership-types — создать новый вид абонемента → 201 Created
     @PostMapping("/membership-types")
     @Operation(summary = "Создать тип абонемента")
     public ResponseEntity<MembershipTypeDto> createType(@Valid @RequestBody MembershipTypeDto dto) {
-        return ResponseEntity.ok(membershipService.createType(dto));
+        return ResponseEntity.status(HttpStatus.CREATED).body(membershipService.createType(dto));
     }
 
     // PUT /api/admin/membership-types/{id} — обновить вид абонемента
@@ -78,7 +79,7 @@ public class AdminController {
         return ResponseEntity.ok(userService.getAllStaff());
     }
 
-    // POST /api/admin/users — создать сотрудника (тренер или ресепшен)
+    // POST /api/admin/users — создать сотрудника (тренер или ресепшен) → 201 Created
     @PostMapping("/users")
     @Operation(summary = "Создать сотрудника (тренер/ресепшен)")
     public ResponseEntity<UserDto> createStaff(@RequestBody CreateStaffRequest request) {
@@ -87,10 +88,11 @@ public class AdminController {
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
                 .phone(request.getPhone())
-                .role(request.getRole()) // роль задаёт администратор
+                .role(request.getRole())
                 .build();
-        return ResponseEntity.ok(userService.createStaff(dto, request.getPassword(),
-                request.getSpecialization(), request.getBio()));
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                userService.createStaff(dto, request.getPassword(),
+                        request.getSpecialization(), request.getBio()));
     }
 
     // Вложенный класс для тела запроса создания сотрудника

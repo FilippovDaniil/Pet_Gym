@@ -34,7 +34,7 @@ async function loadSchedule() {
 
 async function confirmBooking(id) {
     try {
-        await put('/trainer/bookings/' + id + '/confirm', {});
+        await patch('/trainer/bookings/' + id, { status: 'CONFIRMED' });
         showOk('alert-ok', 'Подтверждено');
         loadSchedule();
     } catch (e) { showErr('alert-err', e.message); }
@@ -44,7 +44,7 @@ async function cancelBooking(id) {
     const reason = prompt('Укажите причину отмены:');
     if (reason === null) return;
     try {
-        await put('/trainer/bookings/' + id + '/cancel', { reason });
+        await patch('/trainer/bookings/' + id, { status: 'CANCELLED', reason });
         showOk('alert-ok', 'Тренировка отменена');
         loadSchedule();
     } catch (e) { showErr('alert-err', e.message); }
@@ -196,7 +196,7 @@ async function loadNotifications() {
 }
 
 async function markAllRead() {
-    await post('/trainer/notifications/read', {});
+    await patch('/trainer/notifications', {});
     loadNotifications();
 }
 

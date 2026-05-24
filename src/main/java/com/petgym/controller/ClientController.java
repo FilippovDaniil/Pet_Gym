@@ -1,16 +1,18 @@
 package com.petgym.controller;
 
 import com.petgym.dto.*;
+import com.petgym.exception.ResourceNotFoundException;
 import com.petgym.service.*;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement; // в Swagger UI показывает, что нужен JWT
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat; // парсинг даты из строки запроса
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize; // проверка роли перед выполнением метода
-import org.springframework.security.core.annotation.AuthenticationPrincipal; // извлекаем текущего пользователя из контекста безопасности
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
@@ -55,13 +57,15 @@ public class ClientController {
         return ResponseEntity.ok(membershipService.getClientPurchases(getCurrentUserId(user)));
     }
 
-    // POST /api/client/memberships/buy/{typeId} — купить абонемент
-    @PostMapping("/memberships/buy/{typeId}")
+    // POST /api/client/memberships/{typeId}/purchases — купить абонемент → 201 Created
+    // URL без глагола: ресурс = "покупка (purchase) для типа абонемента {typeId}"
+    @PostMapping("/memberships/{typeId}/purchases")
     @Operation(summary = "Купить абонемент")
-    public ResponseEntity<PurchaseDto> buyMembership(@PathVariable Long typeId, // {typeId} из URL
+    public ResponseEntity<PurchaseDto> buyMembership(@PathVariable Long typeId,
                                                      @AuthenticationPrincipal UserDetails user) {
         Long clientId = getCurrentUserId(user);
-        return ResponseEntity.ok(membershipService.buyMembership(clientId, typeId, LocalDate.now()));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(membershipService.buyMembership(clientId, typeId, LocalDate.now()));
     }
 
     // GET /api/client/trainers — список всех тренеров
@@ -80,12 +84,13 @@ public class ClientController {
         return ResponseEntity.ok(bookingService.getFreeSlots(trainerId, date));
     }
 
-    // POST /api/client/bookings — создать бронирование
+    // POST /api/client/bookings — создать бронирование → 201 Created
     @PostMapping("/bookings")
     @Operation(summary = "Создать бронирование")
     public ResponseEntity<BookingDto> createBooking(@Valid @RequestBody CreateBookingRequest request,
                                                     @AuthenticationPrincipal UserDetails user) {
-        return ResponseEntity.ok(bookingService.createBooking(getCurrentUserId(user), request));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(bookingService.createBooking(getCurrentUserId(user), request));
     }
 
     // GET /api/client/bookings — мои бронирования
@@ -105,11 +110,12 @@ public class ClientController {
     }
 
     // GET /api/client/workout-program — моя программа тренировок
+    // 404 если программа не назначена (а не 204 — ресурс не существует, а не "пустой ответ")
     @GetMapping("/workout-program")
     @Operation(summary = "Моя программа тренировок")
     public ResponseEntity<WorkoutProgramDto> getMyProgram(@AuthenticationPrincipal UserDetails user) {
         WorkoutProgramDto program = workoutService.getClientProgram(getCurrentUserId(user));
-        if (program == null) return ResponseEntity.noContent().build(); // 204 если программы нет
+        if (program == null) throw new ResourceNotFoundException("Программа тренировок не назначена");
         return ResponseEntity.ok(program);
     }
 
@@ -120,11 +126,12 @@ public class ClientController {
         return ResponseEntity.ok(notificationService.getMyNotifications(getCurrentUserId(user)));
     }
 
-    // POST /api/client/notifications/read — пометить все уведомления прочитанными
-    @PostMapping("/notifications/read")
+    // PATCH /api/client/notifications — пометить все уведомления как прочитанные
+    // PATCH вместо POST/read — частичное обновление ресурса, URL без глагола
+    @PatchMapping("/notifications")
     @Operation(summary = "Пометить все уведомления как прочитанные")
     public ResponseEntity<Void> markRead(@AuthenticationPrincipal UserDetails user) {
         notificationService.markAllRead(getCurrentUserId(user));
-        return ResponseEntity.ok().build(); // 200 OK без тела
+        return ResponseEntity.ok().build();
     }
 }

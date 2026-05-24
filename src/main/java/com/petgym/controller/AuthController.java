@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation; // аннотация для о�
 import io.swagger.v3.oas.annotations.tags.Tag;  // группировка эндпоинтов в Swagger UI
 import jakarta.validation.Valid;                 // запускает валидацию аннотаций @NotBlank, @Email и т.д. на DTO
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity; // HTTP-ответ с телом и статус-кодом
 import org.springframework.web.bind.annotation.*;
 
@@ -19,13 +20,11 @@ public class AuthController {
 
     private final AuthService authService;
 
-    // POST /api/auth/register — регистрация нового клиента
+    // POST /api/auth/register — регистрация нового клиента → 201 Created
     @PostMapping("/register")
-    @Operation(summary = "Регистрация нового клиента") // описание в Swagger
+    @Operation(summary = "Регистрация нового клиента")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
-        // @RequestBody — десериализуем JSON из тела запроса в объект RegisterRequest
-        // @Valid — запускаем валидацию (если ошибка — GlobalExceptionHandler вернёт 400)
-        return ResponseEntity.ok(authService.register(request)); // 200 OK + тело JSON
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
     }
 
     // POST /api/auth/login — вход в систему

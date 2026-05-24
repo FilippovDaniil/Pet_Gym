@@ -50,7 +50,7 @@ async function loadMemberships() {
 
 async function buyMembership(typeId) {
     try {
-        await post('/client/memberships/buy/' + typeId, {});
+        await post('/client/memberships/' + typeId + '/purchases', {});
         showOk('alert-ok', 'Абонемент успешно куплен!');
         loadMemberships();
     } catch (e) { showErr('alert-err', e.message); }
@@ -230,8 +230,13 @@ async function loadProgram() {
                     </div>`;
                 }).join('');
     } catch (e) {
-        if (e.message.includes('204') || e.message === '') {
-            document.getElementById('program-content').innerHTML = '<p class="text-muted">Программа не назначена</p>';
+        // 404 = программа не назначена (ресурс не существует)
+        if (e.message.includes('404') || e.message.includes('не назначена') || e.message === '') {
+            document.getElementById('program-content').innerHTML = `
+                <div class="text-center py-5 text-muted">
+                    <div style="font-size:3rem">📋</div>
+                    <p class="mt-2">Программа тренировок ещё не назначена тренером</p>
+                </div>`;
         } else showErr('alert-err', e.message);
     }
 }
@@ -249,7 +254,7 @@ async function loadNotifications() {
 }
 
 async function markAllRead() {
-    await post('/client/notifications/read', {});
+    await patch('/client/notifications', {});
     loadNotifications();
 }
 

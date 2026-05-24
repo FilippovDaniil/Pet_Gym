@@ -56,6 +56,28 @@ services:
       timeout: 5s
       retries: 5
 
+  # ─── OpenSearch (полнотекстовый поиск тренеров) ──────────────────────────────
+  opensearch:
+    image: opensearchproject/opensearch:2.17.0
+    container_name: petgym-opensearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node          # без кластеризации (dev режим)
+      - DISABLE_SECURITY_PLUGIN=true         # HTTP без TLS — только для dev!
+      - bootstrap.memory_lock=false
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    healthcheck:
+      # Принимаем green И yellow — yellow норма для single-node кластера
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s   # OpenSearch стартует медленно
+
   # ─── Spring Boot Application ─────────────────────────────────────────────────
   app:
     build:
@@ -68,6 +90,8 @@ services:
         condition: service_healthy
       loki:
         condition: service_healthy
+      opensearch:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/petgym
       SPRING_DATASOURCE_USERNAME: postgres
@@ -77,6 +101,8 @@ services:
       JWT_EXPIRATION: 86400000
       LOGGING_LEVEL_COM_PETGYM: INFO
       SPRING_PROFILES_ACTIVE: docker
+      # ← имя сервиса docker-compose, не localhost!
+      OPENSEARCH_URL: http://opensearch:9200
     ports:
       - "8091:8091"
     healthcheck:
@@ -92,4 +118,6 @@ volumes:
   loki_data:
     driver: local
   grafana_data:
+    driver: local
+  opensearch_data:
     driver: local

@@ -63,6 +63,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // не создаём HTTP-сессии (JWT сам хранит состояние)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()  // регистрация и вход доступны всем
+                .requestMatchers(HttpMethod.GET, "/api/search/**").permitAll() // поиск без авторизации
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/api-docs/**", "/v3/api-docs/**").permitAll() // Swagger UI доступен всем
                 .requestMatchers("/h2-console/**").permitAll() // H2 консоль (для разработки)
                 .requestMatchers("/", "/index.html", "/client.html", "/reception.html", "/admin.html", "/trainer.html").permitAll() // статические HTML-страницы
