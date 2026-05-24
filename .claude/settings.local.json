@@ -53,7 +53,15 @@
       "PowerShell(Invoke-WebRequest -Uri \"http://localhost:30091/swagger-ui.html\" -UseBasicParsing -TimeoutSec 10 | Select-Object -ExpandProperty StatusCode)",
       "PowerShell(Invoke-WebRequest -Uri \"http://localhost:30091/api/search/trainers\" -UseBasicParsing -TimeoutSec 10 | Select-Object StatusCode, @{N='Body';E={$_.Content.Substring\\(0,[Math]::Min\\(300,$_.Content.Length\\)\\)}})",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(docker-compose up *)",
+      "Bash(timeout 90 bash *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8091/)",
+      "Bash(curl -s -o /dev/null -w \"manifest.json: %{http_code}\\\\n\" http://localhost:8091/manifest.json)",
+      "Bash(curl -s -o /dev/null -w \"sw.js: %{http_code}\\\\n\" http://localhost:8091/sw.js)",
+      "Bash(curl -s -o /dev/null -w \"icon.svg: %{http_code}\\\\n\" http://localhost:8091/icons/icon.svg)",
+      "Bash(timeout 60 sleep 3 *)",
+      "Bash(curl -s -o /dev/null -w \"index.html: %{http_code}\\\\n\" http://localhost:8091/)"
     ]
   }
 }

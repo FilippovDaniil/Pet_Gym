@@ -68,6 +68,7 @@ public class SecurityConfig {
                 .requestMatchers("/h2-console/**").permitAll() // H2 консоль (для разработки)
                 .requestMatchers("/", "/index.html", "/client.html", "/reception.html", "/admin.html", "/trainer.html").permitAll() // статические HTML-страницы
                 .requestMatchers("/css/**", "/js/**", "/favicon.ico").permitAll() // статические ресурсы
+                .requestMatchers("/manifest.json", "/sw.js", "/icons/**").permitAll() // PWA файлы
                 .requestMatchers("/api/client/**").hasRole("CLIENT")     // только клиенты
                 .requestMatchers("/api/reception/**").hasRole("RECEPTION") // только сотрудники ресепшен
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")       // только администраторы
