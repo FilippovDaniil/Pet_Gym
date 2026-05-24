@@ -39,7 +39,21 @@
       "PowerShell(kubectl get pods *)",
       "PowerShell($response = try { Invoke-WebRequest -Uri \"http://localhost:30091/swagger-ui.html\" -TimeoutSec 5 -UseBasicParsing; $response.StatusCode } catch { \"Error: $\\($_.Exception.Message\\)\" }; $response)",
       "PowerShell($p = try { \\(Invoke-WebRequest -Uri \"http://localhost:30903\" -TimeoutSec 3 -UseBasicParsing\\).StatusCode } catch { \"Error\" }; $g = try { \\(Invoke-WebRequest -Uri \"http://localhost:30304/api/health\" -TimeoutSec 3 -UseBasicParsing\\).StatusCode } catch { \"Error\" }; \"Prometheus: $p | Grafana: $g\")",
-      "PowerShell(kubectl logs *)"
+      "PowerShell(kubectl logs *)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(Sort-Object Name)",
+      "Bash(xargs wc -l)",
+      "Bash(Select-Object -First 75)",
+      "Bash(./gradlew clean *)",
+      "PowerShell(kubectl get nodes *)",
+      "PowerShell(rdctl shell -- sh -c \"docker load < /mnt/c/Users/$env:USERNAME/AppData/Local/Temp/pet-gym.tar\")",
+      "PowerShell(kubectl apply *)",
+      "PowerShell(kubectl get all *)",
+      "PowerShell(kubectl rollout status *)",
+      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:30091/swagger-ui.html\" -UseBasicParsing -TimeoutSec 10 | Select-Object -ExpandProperty StatusCode)",
+      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:30091/api/search/trainers\" -UseBasicParsing -TimeoutSec 10 | Select-Object StatusCode, @{N='Body';E={$_.Content.Substring\\(0,[Math]::Min\\(300,$_.Content.Length\\)\\)}})",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
