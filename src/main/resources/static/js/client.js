@@ -50,10 +50,15 @@ async function loadMemberships() {
 
 async function buyMembership(typeId) {
     try {
-        await post('/client/memberships/' + typeId + '/purchases', {});
-        showOk('alert-ok', 'Абонемент успешно куплен!');
+        const btn = event.target;
+        btn.disabled = true;
+        btn.textContent = 'Переход к оплате...';
+        const data = await post('/client/memberships/' + typeId + '/pay', {});
+        window.location.href = data.formUrl;
+    } catch (e) {
+        showErr('alert-err', e.message);
         loadMemberships();
-    } catch (e) { showErr('alert-err', e.message); }
+    }
 }
 
 async function loadTrainers() {

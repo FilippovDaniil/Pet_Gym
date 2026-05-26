@@ -63,6 +63,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // не создаём HTTP-сессии (JWT сам хранит состояние)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()  // регистрация и вход доступны всем
+                .requestMatchers("/api/payment/callback", "/api/payment/fail").permitAll() // callback от Alfa Bank (browser redirect)
                 .requestMatchers(HttpMethod.GET, "/api/search/**").permitAll() // поиск без авторизации
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/api-docs/**", "/v3/api-docs/**").permitAll() // Swagger UI доступен всем
                 .requestMatchers("/h2-console/**").permitAll() // H2 консоль (для разработки)

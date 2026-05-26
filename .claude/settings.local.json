@@ -61,7 +61,14 @@
       "Bash(curl -s -o /dev/null -w \"sw.js: %{http_code}\\\\n\" http://localhost:8091/sw.js)",
       "Bash(curl -s -o /dev/null -w \"icon.svg: %{http_code}\\\\n\" http://localhost:8091/icons/icon.svg)",
       "Bash(timeout 60 sleep 3 *)",
-      "Bash(curl -s -o /dev/null -w \"index.html: %{http_code}\\\\n\" http://localhost:8091/)"
+      "Bash(curl -s -o /dev/null -w \"index.html: %{http_code}\\\\n\" http://localhost:8091/)",
+      "PowerShell(.\\\\rancher\\\\build-and-load.ps1)",
+      "PowerShell($content = Get-Content \".\\\\rancher\\\\build-and-load.ps1\" -Raw -Encoding UTF8; [System.IO.File]::WriteAllText\\(\\(Resolve-Path \".\\\\rancher\\\\build-and-load.ps1\"\\).Path, $content, [System.Text.UTF8Encoding]::new\\($true\\)\\))",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "PowerShell(.\\\\rancher\\\\build-and-load.ps1 -Restart)",
+      "PowerShell(.\\\\gradlew.bat test --no-daemon 2>&1)",
+      "PowerShell(Get-Content *)",
+      "Bash(git rm *)"
     ]
   }
 }

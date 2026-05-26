@@ -59,6 +59,10 @@ data:
   # OpenSearch — имя K8s Service из 08-opensearch.yaml (не localhost!)
   OPENSEARCH_URL: "http://opensearch-service:9200"
 
+  # Alfa Bank: callback URL-ы — через NodePort 30091 (доступен из браузера клиента)
+  ALFABANK_RETURN_URL: "http://localhost:30091/api/payment/callback"
+  ALFABANK_FAIL_URL: "http://localhost:30091/api/payment/fail"
+
 ---
 # ──── Deployment Pet Gym Application ─────────────────────────────────────────
 apiVersion: apps/v1
@@ -147,6 +151,16 @@ spec:
                 secretKeyRef:
                   name: pet-gym-secrets      # Secret из 01-secrets.yaml
                   key: postgres-password      # Ключ в Secret = "1234"
+            - name: ALFABANK_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: pet-gym-secrets
+                  key: alfabank-username
+            - name: ALFABANK_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pet-gym-secrets
+                  key: alfabank-password
 
           # ── readinessProbe ────────────────────────────────────────────────────
           # readinessProbe: "готов ли Pod принимать трафик?"

@@ -33,6 +33,7 @@ public class ClientController {
     private final WorkoutService workoutService;
     private final UserService userService;
     private final NotificationService notificationService;
+    private final PaymentService paymentService;
     private final com.petgym.repository.UserRepository userRepository;
 
     // Вспомогательный метод: извлекаем id текущего пользователя из JWT-контекста
@@ -57,15 +58,26 @@ public class ClientController {
         return ResponseEntity.ok(membershipService.getClientPurchases(getCurrentUserId(user)));
     }
 
-    // POST /api/client/memberships/{typeId}/purchases — купить абонемент → 201 Created
-    // URL без глагола: ресурс = "покупка (purchase) для типа абонемента {typeId}"
+    // POST /api/client/memberships/{typeId}/purchases — купить абонемент без оплаты (офлайн/ресепшен) → 201 Created
     @PostMapping("/memberships/{typeId}/purchases")
-    @Operation(summary = "Купить абонемент")
+    @Operation(summary = "Купить абонемент (без онлайн-оплаты)")
     public ResponseEntity<PurchaseDto> buyMembership(@PathVariable Long typeId,
                                                      @AuthenticationPrincipal UserDetails user) {
         Long clientId = getCurrentUserId(user);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(membershipService.buyMembership(clientId, typeId, LocalDate.now()));
+    }
+
+    // POST /api/client/memberships/{typeId}/pay — оплатить абонемент через Alfa Bank
+    // Возвращает URL страницы оплаты банка, на который нужно перенаправить браузер
+    @PostMapping("/memberships/{typeId}/pay")
+    @Operation(summary = "Оплатить абонемент через Alfa Bank (возвращает URL страницы оплаты)")
+    public ResponseEntity<java.util.Map<String, String>> payMembership(
+            @PathVariable Long typeId,
+            @AuthenticationPrincipal UserDetails user) {
+        Long clientId = getCurrentUserId(user);
+        String formUrl = paymentService.initiatePayment(clientId, typeId);
+        return ResponseEntity.ok(java.util.Map.of("formUrl", formUrl));
     }
 
     // GET /api/client/trainers — список всех тренеров
