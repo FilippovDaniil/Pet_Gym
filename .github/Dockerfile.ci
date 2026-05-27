@@ -1,0 +1,39 @@
+# Dockerfile.ci — минимальный образ для CI/CD пайплайна.
+#
+# Отличие от Dockerfile в корне проекта:
+#   Dockerfile      — multi-stage: сам скачивает Gradle и собирает JAR внутри Docker.
+#   Dockerfile.ci   — копирует уже собранный JAR (сборка выполнена Gradle на GitHub Runner).
+#
+# Преимущества подхода "build on host, copy in Docker":
+#   - Gradle-кеш переиспользуется между шагами workflow (actions/setup-java cache: gradle)
+#   - Docker-слои не зависят от скачивания Gradle дистрибутива
+#   - Итоговый образ идентичен: те же базовый образ, пользователь, порт, healthcheck
+
+FROM eclipse-temurin:21-jre-alpine
+
+WORKDIR /app
+
+# Непривилегированный пользователь — контейнер не запускается от root
+RUN addgroup -S petgym && adduser -S petgym -G petgym
+
+# Копируем pre-built JAR из build/libs/
+# Wildcard — не привязываемся к конкретной версии (Pet_Gym-1.0.0.jar, Pet_Gym-1.1.0.jar и т.д.)
+COPY build/libs/Pet_Gym-*.jar app.jar
+
+RUN chown petgym:petgym app.jar
+
+USER petgym
+
+EXPOSE 8091
+
+# Healthcheck для docker run / docker-compose.
+# K8s использует readinessProbe из 06-app.yaml — этот блок там игнорируется.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD wget -qO- http://localhost:8091/swagger-ui.html || exit 1
+
+# Передаём JVM-параметры через переменную среды (переопределяется в K8s ConfigMap).
+# Credentials и datasource URL — НЕ здесь. Только через runtime environment.
+ENV JAVA_OPTS="-Xms256m -Xmx512m"
+
+# sh -c нужен чтобы $JAVA_OPTS раскрылся (exec form ["java", "$JAVA_OPTS", ...] не раскрывает переменные)
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

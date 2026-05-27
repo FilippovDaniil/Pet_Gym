@@ -1,0 +1,109 @@
+name: Security Scan
+
+on:
+  push:
+    branches:
+      - master
+  schedule:
+    # Каждый понедельник в 03:00 UTC
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write  # необходим для загрузки SARIF в Security tab
+
+jobs:
+  # ── Job 1: Сканируем зависимости и исходники ──────────────────────────────
+  trivy-filesystem:
+    name: Trivy — Filesystem & Dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Trivy (filesystem)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-fs.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+          # Advisory: не блокирует пайплайн.
+          # Поднять до exit-code: '1' + severity: CRITICAL,HIGH когда
+          # закроете первую волну уязвимостей.
+          exit-code: '0'
+          ignore-unfixed: true
+
+      - name: Upload Trivy FS results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-filesystem
+
+  # ── Job 2: Сканируем Docker-образ ─────────────────────────────────────────
+  trivy-image:
+    name: Trivy — Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build JAR for scanning
+        run: ./gradlew bootJar --no-daemon -x test
+
+      - name: Build Docker image locally (no push)
+        run: |
+          docker build \
+            --no-cache \
+            -f .github/Dockerfile.ci \
+            -t pet-gym:scan \
+            .
+
+      - name: Run Trivy (Docker image)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: pet-gym:scan
+          format: sarif
+          output: trivy-image.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+          exit-code: '0'
+          ignore-unfixed: true
+
+      - name: Upload Trivy image results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-docker-image
+
+  # ── Job 3: Проверяем секреты в коде (gitleaks) ────────────────────────────
+  secret-scan:
+    name: Gitleaks — Secret Detection
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (full history for secret scan)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

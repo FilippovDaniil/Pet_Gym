@@ -1,0 +1,72 @@
+version: 2
+
+updates:
+  # ── Gradle зависимости ─────────────────────────────────────────────────────
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 5
+    # Группируем связанные зависимости в один PR
+    groups:
+      spring-boot:
+        patterns:
+          - "org.springframework.boot:*"
+          - "io.spring.dependency-management:*"
+        update-types:
+          - minor
+          - patch
+      spring-security:
+        patterns:
+          - "org.springframework.security:*"
+        update-types:
+          - minor
+          - patch
+      springdoc:
+        patterns:
+          - "org.springdoc:*"
+      jwt:
+        patterns:
+          - "io.jsonwebtoken:*"
+      flyway:
+        patterns:
+          - "org.flywaydb:*"
+      testing:
+        patterns:
+          - "org.junit:*"
+          - "org.junit.jupiter:*"
+          - "org.mockito:*"
+      opensearch:
+        patterns:
+          - "org.opensearch.client:*"
+          - "org.apache.httpcomponents.client5:*"
+    ignore:
+      # Мажорные обновления — только вручную (требуют миграции)
+      - dependency-name: "org.springframework.boot:*"
+        update-types: [ "version-update:semver-major" ]
+      - dependency-name: "org.flywaydb:*"
+        update-types: [ "version-update:semver-major" ]
+      - dependency-name: "io.jsonwebtoken:*"
+        update-types: [ "version-update:semver-major" ]
+      - dependency-name: "org.opensearch.client:*"
+        update-types: [ "version-update:semver-major" ]
+
+  # ── GitHub Actions ────────────────────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions-all:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
