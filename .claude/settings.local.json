@@ -68,7 +68,8 @@
       "PowerShell(.\\\\rancher\\\\build-and-load.ps1 -Restart)",
       "PowerShell(.\\\\gradlew.bat test --no-daemon 2>&1)",
       "PowerShell(Get-Content *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(node -e \"const fs=require\\('fs'\\); const files=['.github/workflows/ci.yml','.github/workflows/docker-publish.yml','.github/workflows/security-scan.yml','.github/dependabot.yml']; files.forEach\\(f=>{try{JSON.stringify\\(require\\('js-yaml'\\).load\\(fs.readFileSync\\('/c/Users/MaxxPC/IdeaProjects/Pet_Gym/'+f,'utf8'\\)\\)\\);console.log\\('OK',f\\)}catch\\(e\\){console.log\\('ERR',f,e.message\\)}}\\)\")"
     ]
   }
 }
