@@ -48,7 +48,7 @@ jobs:
           ALFABANK_PASSWORD: test
 
       - name: Upload test report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-${{ github.run_number }}
@@ -92,7 +92,7 @@ jobs:
         run: ls -lh build/libs/*.jar
 
       - name: Upload JAR artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pet-gym-jar-${{ github.run_number }}
           path: build/libs/Pet_Gym-*.jar
