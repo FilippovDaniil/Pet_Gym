@@ -23,19 +23,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Устанавливаем Trivy напрямую — без trivy-action, чтобы не зависеть
+      # от транзитивных action-зависимостей (setup-trivy и т.д.)
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin
+          trivy --version
+
       - name: Run Trivy (filesystem)
-        uses: aquasecurity/trivy-action@v0.28.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: sarif
-          output: trivy-fs.sarif
-          severity: CRITICAL,HIGH,MEDIUM
-          # Advisory: не блокирует пайплайн.
-          # Поднять до exit-code: '1' + severity: CRITICAL,HIGH когда
-          # закроете первую волну уязвимостей.
-          exit-code: '0'
-          ignore-unfixed: true
+        run: |
+          trivy fs \
+            --format sarif \
+            --output trivy-fs.sarif \
+            --severity CRITICAL,HIGH,MEDIUM \
+            --ignore-unfixed \
+            --exit-code 0 \
+            .
+        # Advisory: exit-code 0 — не блокирует пайплайн.
+        # Когда закроете первую волну уязвимостей, поднять до --exit-code 1
+        # и сузить до --severity CRITICAL,HIGH
 
       - name: Upload Trivy FS results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
@@ -74,16 +81,21 @@ jobs:
             -t pet-gym:scan \
             .
 
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin
+          trivy --version
+
       - name: Run Trivy (Docker image)
-        uses: aquasecurity/trivy-action@v0.28.0
-        with:
-          scan-type: image
-          image-ref: pet-gym:scan
-          format: sarif
-          output: trivy-image.sarif
-          severity: CRITICAL,HIGH,MEDIUM
-          exit-code: '0'
-          ignore-unfixed: true
+        run: |
+          trivy image \
+            --format sarif \
+            --output trivy-image.sarif \
+            --severity CRITICAL,HIGH,MEDIUM \
+            --ignore-unfixed \
+            --exit-code 0 \
+            pet-gym:scan
 
       - name: Upload Trivy image results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
