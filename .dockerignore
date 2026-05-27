@@ -1,5 +1,6 @@
-# Gradle build outputs
+# Gradle build outputs (исключаем всё, кроме собранного JAR)
 build/
+!build/libs/*.jar
 .gradle/
 
 # IDE
