@@ -31,7 +31,7 @@ jobs:
 
       # ── 1. Собираем JAR на хосте (быстро, с Gradle-кешем) ─────────────────
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
